@@ -1,0 +1,16 @@
+$ kubectl get deploy prediction-api   # before
+prediction-api   2/2   2     2     110m
+
+$ kubectl get deploy,pods   # after the confirmed scale-up
+deployment.apps/prediction-api   3/3   3     3     111m
+pod/prediction-api-584c858b9b-cf7jl   1/1   Running   1 (2m42s ago)   64m
+pod/prediction-api-584c858b9b-pndr4   1/1   Running   0               30s
+pod/prediction-api-584c858b9b-qzd5w   1/1   Running   1 (2m42s ago)   64m
+
+$ kubectl get deploy   # unchanged after the rejected request
+prediction-api   3/3   3     3     112m
+
+$ kubectl get deploy,pods   # after scaling back
+deployment.apps/prediction-api   2/2   2     2     113m
+pod/prediction-api-584c858b9b-cf7jl   1/1   Running   1 (4m30s ago)   66m
+pod/prediction-api-584c858b9b-qzd5w   1/1   Running   1 (4m30s ago)   66m

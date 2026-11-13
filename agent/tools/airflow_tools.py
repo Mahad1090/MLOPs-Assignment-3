@@ -254,10 +254,40 @@ def failed_tasks(args: DagRunArgs, ctx: ToolContext) -> dict[str, Any]:
             task["log_tail"] = _log_lines(args.dag_id, run_id, task["task_id"], task["try_number"] or 1, 12)
         except ToolError as exc:
             task["log_error"] = str(exc)
+    retried = []
+    for task in tasks:
+        # A task that needed a retry ends as "success", so final states alone hide it.
+        if (task["try_number"] or 0) > 1 and task["state"] not in FAILED_TASK_STATES:
+            tries = _request(
+                "GET", f"/dags/{args.dag_id}/dagRuns/{run_id}/taskInstances/{task['task_id']}/tries"
+            ).get("task_instances", [])
+            entry = {
+                "task_id": task["task_id"],
+                "final_state": task["state"],
+                "attempts": [
+                    {
+                        "try_number": t["try_number"],
+                        "state": t["state"],
+                        "duration_seconds": t.get("duration"),
+                    }
+                    for t in tries
+                ],
+            }
+            first_failure = next((t for t in tries if t["state"] == "failed"), None)
+            if first_failure:
+                try:
+                    entry["failed_attempt_log_tail"] = _log_lines(
+                        args.dag_id, run_id, task["task_id"], first_failure["try_number"], 12
+                    )
+                except ToolError as exc:
+                    entry["failed_attempt_log_error"] = str(exc)
+            retried.append(entry)
     return {
         "dag_id": args.dag_id,
         "dag_run_id": run_id,
         "run_state": run["state"],
+        "retried_task_count": len(retried),
+        "retried_tasks": retried,
         "failed_task_count": len(failed),
         "root_cause_tasks": [t["task_id"] for t in failed if t["state"] == "failed"],
         "blocked_downstream_tasks": [t["task_id"] for t in failed if t["state"] != "failed"],
@@ -352,7 +382,9 @@ TOOLS = [
         name="airflow_failed_tasks",
         description=(
             "Identify the failed tasks of a DAG run (latest by default), separating the task that "
-            "actually failed from downstream tasks that were blocked, with the failing log tail."
+            "actually failed from downstream tasks that were blocked, with the failing log tail. "
+            "Also lists tasks that needed a retry (attempts and why the failed attempt failed), "
+            "even when the run finally succeeded."
         ),
         args_model=DagRunArgs,
         func=failed_tasks,

@@ -58,6 +58,9 @@ figure img { max-width: 92%; border: 1px solid #bbb; }
 figure.noborder img { border: 0; }
 figcaption { font-style: italic; font-size: 8.8pt; margin-top: 4pt; }
 figcaption b { font-weight: 700; }
+body { counter-reset: fig; }
+figure { counter-increment: fig; }
+figcaption::before { content: "Figure " counter(fig) ": "; font-weight: 700; }
 .row { display: flex; gap: 8pt; justify-content: center; }
 .row figure { flex: 1; margin: 0; }
 
@@ -125,7 +128,7 @@ svg text { font-family: "Plus Jakarta Sans", sans-serif; }
   </g>
   <text x="350" y="436" font-size="10.5" text-anchor="middle" fill="#555">A fifth, read-only retraining-policy tool combines MLflow and DVC evidence (30 tools in total).</text>
 </svg>
-<figcaption><b>Figure 1:</b> Logical architecture of the agent and its four tool integrations.</figcaption>
+<figcaption>Logical architecture of the agent and its four tool integrations.</figcaption>
 </figure>
 
 <h2>2.2 Components</h2>
@@ -215,7 +218,7 @@ prediction-api  GET /version  reports model version, run id and dataset version<
 
 <h2>3.3 Evidence: reproducible checkout</h2>
 <p>The capture shows the tags, the pointer file, a clean workspace with the remote in sync, the diff between versions, and <code>data-v1.0</code> fetched again with an md5 equal to the pointer recorded at that tag.</p>
-<figure><img src="../../screenshots/term_dvc.png" style="width:92%"><figcaption><b>Figure 2:</b> DVC versions, status, diff and reproducible retrieval of <code>data-v1.0</code> (terminal output).</figcaption></figure>
+<figure><img src="../../screenshots/term_dvc.png" style="width:92%"><figcaption>DVC versions, status, diff and reproducible retrieval of <code>data-v1.0</code> (terminal output).</figcaption></figure>
 <p>Provenance is recorded at training time. The MLflow run stores the md5 of the bytes actually read, and a flag that says whether they equal the DVC pointer. For example, the model that is deployed was trained on <code>data-v2.0</code>, and <code>dvc_find_version</code> resolves its md5 to that tag (conversation 1 in section 8 does the same for model version 1 and <code>data-v1.0</code>).</p>
 
 <!-- ========================================================== 4 -->
@@ -246,6 +249,7 @@ prediction-api  GET /version  reports model version, run id and dataset version<
 <h2>4.4 Evidence</h2>
 <table>
 <tr><th>Run</th><th>Model</th><th class="c">F1</th><th class="c">Accuracy</th><th>Gate</th><th>Dataset</th><th>Started by</th></tr>
+<tr><td><code>49a6d92c</code></td><td>random_forest</td><td class="c">0.9645</td><td class="c">0.9561</td><td>passed</td><td>data-v2.0</td><td>Airflow (retry demonstration)</td></tr>
 <tr><td><code>eaf859d5</code></td><td>random_forest</td><td class="c">0.9645</td><td class="c">0.9561</td><td>passed</td><td>data-v2.0</td><td>Airflow (by the agent)</td></tr>
 <tr><td><code>61c5953c</code></td><td>random_forest</td><td class="c">0.9645</td><td class="c">0.9561</td><td><b>failed</b></td><td>data-v2.0</td><td>Airflow (injected failure)</td></tr>
 <tr><td><code>f1396c4a</code></td><td>logistic_regression</td><td class="c">0.9930</td><td class="c">0.9912</td><td>passed</td><td>data-v2.0</td><td>Airflow (deployed, model v4)</td></tr>
@@ -253,16 +257,26 @@ prediction-api  GET /version  reports model version, run id and dataset version<
 <tr><td><code>7c87e1ed</code></td><td>random_forest</td><td class="c">0.9650</td><td class="c">0.9561</td><td>passed</td><td>data-v2.0</td><td>local pipeline</td></tr>
 <tr><td><code>e59819ab</code></td><td>logistic_regression</td><td class="c">1.0000</td><td class="c">1.0000</td><td>passed</td><td>data-v1.0</td><td>local pipeline</td></tr>
 </table>
-<figure><img src="../../screenshots/mlflow_runs.png"><figcaption><b>Figure 3:</b> MLflow experiment with six runs, five of them linked to registered model versions.</figcaption></figure>
-<figure><img src="../../screenshots/mlflow_run_detail.png"><figcaption><b>Figure 4:</b> One run with its provenance tags: dataset path, md5, version, pointer commit, git commit, gate result and the Airflow run that started it.</figcaption></figure>
-<figure><img src="../../screenshots/mlflow_registry.png"><figcaption><b>Figure 5:</b> Model registry. Each version carries the dataset md5 and version of the run it came from.</figcaption></figure>
+<figure><img src="../../screenshots/mlflow_runs.png"><figcaption>MLflow experiment with seven runs, six of them linked to registered model versions.</figcaption></figure>
+<figure><img src="../../screenshots/mlflow_run_detail.png"><figcaption>One run with its provenance tags: dataset path, md5, version, pointer commit, git commit, gate result and the Airflow run that started it.</figcaption></figure>
+<figure><img src="../../screenshots/mlflow_registry.png"><figcaption>Model registry. Each version carries the dataset md5 and version of the run it came from.</figcaption></figure>
+
+
+<h2>4.5 Comparing two experiments</h2>
+<p>A second experiment, <code>breast-cancer-logreg-sweep</code>, holds two logistic-regression runs (C = 0.5 and C = 5.0) trained and evaluated on <code>data-v2.0</code> with the same pipeline code. Their models were not registered, so the registry is unchanged by them.</p>
+<ul>
+<li><b>Question:</b> "Compare the experiments breast-cancer-classifier and breast-cancer-logreg-sweep on F1. Which one has the better best run, and is that enough to promote it?"</li>
+<li><b>Tool:</b> <code>mlflow_compare_experiments</code> (metric F1).</li>
+<li><b>Answer:</b> both experiments reach a best F1 of 1.0, so it is a tie. The best run of the main experiment used <code>data-v1.0</code> and passed its gate. The best run of the sweep used <code>data-v2.0</code>, and its gate shows <code>pending</code> because the gate was never run for it. The agent advised against promoting on F1 alone and to check the dataset version of the deployed model first.</li>
+</ul>
+<figure><img src="../../screenshots/mlflow_second_experiment.png"><figcaption>The second experiment with its two runs.</figcaption></figure>
 
 <!-- ========================================================== 5 -->
 <h1>5. Task 3: Apache Airflow workflow</h1>
 
 <h2>5.1 The training DAG</h2>
 <p>The DAG <code>training_pipeline</code> has the six stages the assignment requires, with the promotion step after the quality gate. Each task runs one stage of <code>training/</code> with the project interpreter and writes its output to the task log.</p>
-<figure><img src="../../screenshots/airflow_dag_graph.png"><figcaption><b>Figure 6:</b> Airflow graph view of a successful run: validate, preprocess, train, evaluate and log to MLflow, quality gate, register.</figcaption></figure>
+<figure><img src="../../screenshots/airflow_dag_graph.png"><figcaption>Airflow graph view of a successful run: validate, preprocess, train, evaluate and log to MLflow, quality gate, register.</figcaption></figure>
 <table>
 <tr><th style="width:30%">Task</th><th>What it does</th></tr>
 <tr><td><code>validate_dataset</code></td><td>Checks columns, null values, numeric types, label values, class balance and a minimum of 200 rows. Writes <code>reports/validation.json</code>.</td></tr>
@@ -291,8 +305,19 @@ prediction-api  GET /version  reports model version, run id and dataset version<
 </ul>
 
 <h2>5.4 Evidence</h2>
-<figure><img src="../../screenshots/airflow_dags.png"><figcaption><b>Figure 7:</b> The DAG list after four runs: three successes and one injected failure.</figcaption></figure>
-<figure><img src="../../screenshots/airflow_run_success.png"><figcaption><b>Figure 8:</b> A successful run started by the agent after the user confirmed. All six tasks succeeded in 33 seconds.</figcaption></figure>
+<figure><img src="../../screenshots/airflow_dags.png"><figcaption>The DAG list after four runs: three successes and one injected failure.</figcaption></figure>
+<figure><img src="../../screenshots/airflow_run_success.png"><figcaption>A successful run started by the agent after the user confirmed. All six tasks succeeded in 33 seconds.</figcaption></figure>
+
+
+<h2>5.5 Retries, demonstrated</h2>
+<p>The retry setting was exercised with a realistic transient failure, using <code>scripts/demo_airflow_retry.py</code>.</p>
+<ul>
+<li><b>Injection:</b> MLflow was stopped as soon as <code>validate_dataset</code> succeeded, so <code>train_model</code> could not reach the tracking server. The stage crashed with exit code 1, which the DAG treats as retryable. MLflow was started again right after the first failure.</li>
+<li><b>Result:</b> attempt 1 of <code>train_model</code> failed after 9.5 s. Airflow marked it <code>up_for_retry</code> and started attempt 2 about 16 s later. Attempt 2 succeeded in 8.0 s, the later tasks each ran once, and the run finished as <code>success</code> in 71 s.</li>
+<li><b>Agent diagnosis:</b> asked "Did any task need a retry?", the agent first answered that none did. That was wrong. <code>airflow_failed_tasks</code> looked only at final states, and a retried task ends as <code>success</code>. The tool now also returns <code>retried_tasks</code> with every attempt and the log of the failed one, and a unit test covers it. The second answer named <code>train_model</code>, quoted the <code>MlflowException</code> connection error from attempt 1, and confirmed the run ended successfully. (The first answer was not saved to a transcript.)</li>
+</ul>
+<figure><img src="../../screenshots/term_airflow_retry_demo.png" style="width:92%"><figcaption>Timeline of the retry demonstration, from the Airflow API (terminal output).</figcaption></figure>
+<figure><img src="../../screenshots/airflow_retry_run.png"><figcaption>The same run in Airflow: all tasks succeeded and <code>train_model</code> shows try number 2.</figcaption></figure>
 
 <!-- ========================================================== 6 -->
 <h1>6. Task 4: Kubernetes operations</h1>
@@ -320,8 +345,25 @@ prediction-api  GET /version  reports model version, run id and dataset version<
 </ul>
 
 <h2>6.3 Evidence</h2>
-<figure><img src="../../screenshots/term_k8s_healthy.png" style="width:94%"><figcaption><b>Figure 9:</b> Healthy deployment: 2/2 Pods ready, ClusterIP Service with both endpoints, ConfigMap, resources and probes (terminal output).</figcaption></figure>
-<figure><img src="../../screenshots/prediction_api_docs.png"><figcaption><b>Figure 10:</b> Prediction API documentation page, reached through <code>kubectl port-forward</code> to the Service.</figcaption></figure>
+<figure><img src="../../screenshots/term_k8s_healthy.png" style="width:94%"><figcaption>Healthy deployment: 2/2 Pods ready, ClusterIP Service with both endpoints, ConfigMap, resources and probes (terminal output).</figcaption></figure>
+<figure><img src="../../screenshots/prediction_api_docs.png"><figcaption>Prediction API documentation page, reached through <code>kubectl port-forward</code> to the Service.</figcaption></figure>
+
+
+<h2>6.4 Scaling and restart loops, demonstrated</h2>
+<h3>Scaling through the agent</h3>
+<ul>
+<li><b>Scale to 3:</b> the agent called <code>k8s_scale_deployment</code>. It was parked until the user confirmed, then the Deployment went to 3 of 3 ready.</li>
+<li><b>Scale to 10:</b> the tool returned <code>denied</code> ("scaling above 4 replicas is not permitted"). The Deployment stayed at 3 of 3.</li>
+<li><b>Scale back to 2:</b> done after confirmation, 2 of 2 ready.</li>
+</ul>
+<figure><img src="../../screenshots/term_k8s_scaling.png" style="width:92%"><figcaption>Replica counts before, after the confirmed scale-up, after the rejected request, and after scaling back (terminal output).</figcaption></figure>
+<h3>A restart loop</h3>
+<ul>
+<li><b>Injection:</b> <code>scripts/inject_failure_k8s_restarts.sh</code> pointed the liveness probe at <code>/health/missing</code>, which returns 404. After about three minutes each Pod had 4 restarts. The events show <code>Liveness probe failed: HTTP probe failed with statuscode: 404</code>.</li>
+<li><b>Agent diagnosis:</b> the final answer reported the restart counts, the 404 liveness failures and the probe path as the root cause, and suggested the corrected probe. Its first answer wrongly said the readiness probe used port 80. The tool printed the port name <code>http</code> without its number and the model guessed. <code>k8s_pod_status</code> now resolves named ports (<code>http = 8000</code>), with a unit test. The first transcript is kept in <code>report/conversations/8_restart_loop_first_attempt_wrong_port.md</code>.</li>
+<li><b>Resolution:</b> <code>scripts/inject_failure_k8s_restarts.sh restore</code> re-applied the manifest and both Pods returned to 1/1 with 0 restarts.</li>
+</ul>
+<figure><img src="../../screenshots/term_k8s_restarts.png" style="width:94%"><figcaption>Pods with restarts and the matching Warning events (terminal output).</figcaption></figure>
 
 <!-- ========================================================== 7 -->
 <h1>7. Integration: multi-tool agent</h1>
@@ -408,14 +450,25 @@ prediction-api  GET /version  reports model version, run id and dataset version<
 <li><b>C:</b> with <code>confirm_action_id</code>, the restart ran. Kubernetes replaced both Pods with zero unavailable replicas.</li>
 <li><b>D:</b> replaying the same confirmation id did nothing, because approvals are single-use.</li>
 </ul>
-<figure><img src="../../screenshots/agent_api_docs.png"><figcaption><b>Figure 11:</b> The agent's FastAPI interface: <code>/chat</code>, <code>/tools</code> and <code>/health</code>.</figcaption></figure>
-<figure><img src="../../screenshots/term_http_demo.png" style="width:92%"><figcaption><b>Figure 12:</b> Live safety demonstration over HTTP: denied out-of-scope restart, pending action, confirmed restart, replay ignored.</figcaption></figure>
+<figure><img src="../../screenshots/agent_api_docs.png"><figcaption>The agent's FastAPI interface: <code>/chat</code>, <code>/tools</code> and <code>/health</code>.</figcaption></figure>
+<figure><img src="../../screenshots/term_http_demo.png" style="width:92%"><figcaption>Live safety demonstration over HTTP: denied out-of-scope restart, pending action, confirmed restart, replay ignored.</figcaption></figure>
+
+
+<h2>8.7 Further live conversations</h2>
+<p>These cover the four items above and are saved the same way in <code>report/conversations/</code>.</p>
+<table>
+<tr><th style="width:32%">Transcript</th><th>Question and outcome</th></tr>
+<tr><td><code>6_compare_experiments.md</code></td><td>Compare two experiments on F1: a tie, with a pending gate and an older dataset noted (section 4.5).</td></tr>
+<tr><td><code>7a_scale_up.md</code>, <code>7b_scale_rejected.md</code>, <code>7c_scale_down.md</code></td><td>Scale to 3 (confirmed), scale to 10 (denied), scale back to 2 (confirmed).</td></tr>
+<tr><td><code>8_restart_loop.md</code></td><td>Why do the Pods keep restarting: the liveness probe path returns 404. The first attempt is kept as <code>8_restart_loop_first_attempt_wrong_port.md</code>.</td></tr>
+<tr><td><code>9_airflow_retry.md</code></td><td>Did any task need a retry: <code>train_model</code>, attempt 1 failed on an MLflow connection error, attempt 2 succeeded.</td></tr>
+</table>
 
 <!-- ========================================================== 9 -->
 <h1>9. Testing, reliability, and safety</h1>
 
 <h2>9.1 Automated tests</h2>
-<p>There are 87 pytest tests (62 test functions, some parametrized) in 7 files. The language model, MLflow client, git and DVC runner, Airflow HTTP transport and Kubernetes clients are all replaced by fakes, so the suite needs no service, cluster or API key. <code>ruff check</code> and <code>ruff format --check</code> are clean.</p>
+<p>There are 89 pytest tests (64 test functions, some parametrized) in 7 files. The language model, MLflow client, git and DVC runner, Airflow HTTP transport and Kubernetes clients are all replaced by fakes, so the suite needs no service, cluster or API key. <code>ruff check</code> and <code>ruff format --check</code> are clean.</p>
 <table>
 <tr><th style="width:36%">Requirement</th><th>Test</th></tr>
 <tr><td>Tool selection and execution</td><td><code>test_selected_tool_is_executed_and_its_result_reaches_the_model</code>, <code>test_multi_tool_request_gathers_evidence_from_all_four_systems</code></td></tr>
@@ -428,9 +481,11 @@ prediction-api  GET /version  reports model version, run id and dataset version<
 <tr><td>Structured logs without secrets</td><td><code>test_structured_logs_record_tool_status_duration_and_request_id</code>, <code>test_secrets_are_redacted_from_logs</code>, <code>test_airflow_credentials_never_appear_in_agent_logs</code></td></tr>
 <tr><td>Command injection and allowlist</td><td><code>test_only_allowlisted_commands_can_run</code> (7 cases), <code>test_revision_arguments_cannot_inject_options</code> (6 cases)</td></tr>
 <tr><td>Answer check</td><td><code>test_answer_check_flags_values_that_no_tool_returned</code>, <code>test_orchestrator_marks_answers_with_ungrounded_values</code></td></tr>
+<tr><td>Retries reported</td><td><code>test_retried_task_is_reported_even_though_the_run_succeeded</code></td></tr>
+<tr><td>Probe ports resolved</td><td><code>test_probe_named_ports_are_resolved_to_numbers</code></td></tr>
 <tr><td>Four-system rule</td><td><code>test_retraining_verdict_is_not_accepted_until_all_four_systems_were_queried</code></td></tr>
 </table>
-<figure><img src="../../screenshots/term_tests.png" style="width:92%"><figcaption><b>Figure 13:</b> Lint and the full test suite: 87 passed.</figcaption></figure>
+<figure><img src="../../screenshots/term_tests.png" style="width:92%"><figcaption>Lint and the full test suite: 89 passed.</figcaption></figure>
 
 <h2>9.2 Structured logs</h2>
 <p>Every tool call writes one JSON line with the tool name, status, duration and request id. Secret-looking keys and token patterns are masked by the formatter. These are real lines from the live demonstration in section 8.6, for the denied and the confirmed restart:</p>
@@ -458,7 +513,7 @@ prediction-api  GET /version  reports model version, run id and dataset version<
 <li><b>Root cause:</b> the ConfigMap points to a model file that is not in the image. The process stays alive, so liveness passes, but it cannot load a model, so readiness returns 503 and the Service has no endpoints.</li>
 <li><b>Resolution:</b> <code>scripts/inject_failure_k8s.sh restore</code> re-applied <code>kubernetes/configmap.yaml</code>. Both Pods returned to 1/1.</li>
 </ul>
-<figure><img src="../../screenshots/term_k8s_failed.png" style="width:94%"><figcaption><b>Figure 14:</b> The failure as seen from <code>kubectl</code>: 0/2 available, 503 readiness answers with the file error, and the matching Warning events.</figcaption></figure>
+<figure><img src="../../screenshots/term_k8s_failed.png" style="width:94%"><figcaption>The failure as seen from <code>kubectl</code>: 0/2 available, 503 readiness answers with the file error, and the matching Warning events.</figcaption></figure>
 
 <h2>10.2 Injected failure 2: training failed (Airflow quality gate)</h2>
 <ul>
@@ -473,8 +528,8 @@ prediction-api  GET /version  reports model version, run id and dataset version<
 <li><b>Effect on promotion:</b> <code>register_model</code> never ran, so no model version exists for that run. The gate was not retried.</li>
 <li><b>Resolution:</b> the next run with the default threshold (0.93) passed and registered a model (conversation 8.3).</li>
 </ul>
-<figure><img src="../../screenshots/airflow_run_failed.png"><figcaption><b>Figure 15:</b> The failed run in Airflow: <code>quality_gate</code> failed, <code>register_model</code> upstream failed, configuration <code>min_f1: 0.999</code>.</figcaption></figure>
-<figure><img src="../../screenshots/airflow_failed_task_log.png"><figcaption><b>Figure 16:</b> The quality-gate task log: <code>AirflowFailException</code> raised because the stage rejected its input. The try number stays at 1, so it was not retried.</figcaption></figure>
+<figure><img src="../../screenshots/airflow_run_failed.png"><figcaption>The failed run in Airflow: <code>quality_gate</code> failed, <code>register_model</code> upstream failed, configuration <code>min_f1: 0.999</code>.</figcaption></figure>
+<figure><img src="../../screenshots/airflow_failed_task_log.png"><figcaption>The quality-gate task log: <code>AirflowFailException</code> raised because the stage rejected its input. The try number stays at 1, so it was not retried.</figcaption></figure>
 
 <h2>10.3 Unexpected failures met during development</h2>
 <table>
@@ -484,6 +539,8 @@ prediction-api  GET /version  reports model version, run id and dataset version<
 <tr><td>LLM call rejected with HTTP 413 ("requested 8465, limit 8000")</td><td>Five tool results plus 30 tool schemas exceeded the free tier's per-request token limit</td><td>Compact tool outputs and a per-turn context budget</td></tr>
 <tr><td>A tool timed out after 30 s</td><td>The machine was swapping heavily during a Docker build</td><td>None needed: the agent reported the timeout in its availability notice and did not guess</td></tr>
 <tr><td>The agent skipped Airflow in the multi-tool scenario</td><td>The model did not follow the prompt instruction</td><td>Runtime four-system rule, covered by a unit test</td></tr>
+<tr><td>The agent said the readiness probe used port 80</td><td>The tool printed the port name <code>http</code> without its number and the model guessed</td><td>Resolve named ports to numbers in <code>k8s_pod_status</code>, with a unit test</td></tr>
+<tr><td>The agent said no task needed a retry</td><td><code>airflow_failed_tasks</code> looked only at final states, and a retried task ends as <code>success</code></td><td>Report retried tasks with their attempts and the failed attempt's log, with a unit test</td></tr>
 <tr><td>An md5 made only of digits was read as an integer</td><td>YAML type inference when parsing <code>.dvc</code> files, found by a unit test</td><td>Cast the md5 to <code>str</code></td></tr>
 </table>
 
@@ -495,12 +552,12 @@ prediction-api  GET /version  reports model version, run id and dataset version<
 <li><b>Workflow</b> <code>.github/workflows/ci.yml</code> runs on pull requests and on pushes to <code>main</code>:
   <ul>
   <li>installs the pinned dependencies, then runs <code>ruff check</code> and <code>ruff format --check</code>;</li>
-  <li>runs the 87 tests, with every external system mocked and no credentials;</li>
+  <li>runs the 89 tests, with every external system mocked and no credentials;</li>
   <li>validates the Kubernetes manifests (replicas, probes, resources, ClusterIP) and the DAG syntax.</li>
   </ul></li>
 <li><b>Result:</b> the job passed on every push of the pull request, in about one minute.</li>
 </ul>
-<figure><img src="../../screenshots/github_ci_run.png"><figcaption><b>Figure 17:</b> GitHub Actions run for pull request #1: <code>lint-and-test</code> succeeded.</figcaption></figure>
+<figure><img src="../../screenshots/github_ci_run.png"><figcaption>GitHub Actions run for pull request #1: <code>lint-and-test</code> succeeded.</figcaption></figure>
 
 <h2>11.1 Repository layout</h2>
 <pre>agent/          main.py  cli.py  orchestrator.py  llm.py  schemas.py  config.py
@@ -509,7 +566,7 @@ api/main.py     prediction service (runs in Kubernetes)
 dags/           training_pipeline.py        training/   six pipeline stages
 kubernetes/     namespace, configmap, deployment, service, rbac
 config/         retraining_policy.yaml      scripts/    services, cluster, failure injection, data
-tests/          87 tests in 7 files         screenshots/  report/{evidence,conversations,source}
+tests/          89 tests in 7 files         screenshots/  report/{evidence,conversations,source}
 dvc.yaml  params.yaml  data/raw/dataset.csv.dvc  Dockerfile  requirements.txt  pyproject.toml</pre>
 
 <!-- ========================================================== 12 -->
