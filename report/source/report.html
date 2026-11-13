@@ -73,18 +73,10 @@ svg text { font-family: "Plus Jakarta Sans", sans-serif; }
 <div class="cover">
   <img class="logo" src="nu_logo.png" alt="NUCES">
   <div class="uni">National University of Computer and Emerging Sciences</div>
-  <div class="course">MLOps &amp; Production AI Engineering</div>
+  <div class="course">MLOps</div>
   <div class="banner">Building a Production-Ready MLOps AI Agent:<br>Design, Develop, Deploy, and Automate</div>
   <div class="who">Mahad Malik <span>23I-0537</span></div>
   <div class="sec">Assignment 03 &nbsp;|&nbsp; Fall 2026</div>
-  <div class="build">
-    <div class="t">Build commands</div>
-<pre>python3.12 -m venv .venv &amp;&amp; .venv/bin/pip install -r requirements.txt
-.venv/bin/pytest
-.venv/bin/uvicorn agent.main:app --port 8001
-scripts/start_mlflow.sh ; scripts/start_airflow.sh ; scripts/setup_cluster.sh</pre>
-    <div class="tc">Toolchain: Python 3.12.3, MLflow 3.18.0, Airflow 3.4.0, DVC 3.67.1, kind 0.33.0 (Kubernetes 1.37), Docker 29</div>
-  </div>
 </div>
 
 <!-- ========================================================== 1 -->
@@ -157,7 +149,7 @@ scripts/start_mlflow.sh ; scripts/start_airflow.sh ; scripts/setup_cluster.sh</p
 <li>For every tool call the model returns, the executor validates the arguments, runs the tool's permission check, then runs the tool in a worker thread with a time budget.</li>
 <li>The outcome is one of seven statuses: <code>ok</code>, <code>error</code>, <code>unavailable</code>, <code>timeout</code>, <code>invalid_input</code>, <code>denied</code> or <code>confirmation_required</code>.</li>
 <li>Tool results go back to the model as JSON. A result that is not <code>ok</code> carries no data, only the error and an instruction not to guess.</li>
-<li>When the model stops calling tools, its text becomes the answer. The runtime then appends a notice for every failed tool and a list of actions awaiting confirmation, whatever the model wrote.</li>
+<li>When the model stops calling tools, its text becomes the answer. The runtime then appends a notice for every failed tool, a notice for any identifier or metric in the answer that no tool returned, and a list of actions awaiting confirmation, whatever the model wrote.</li>
 </ol>
 
 <h2>2.4 How provenance links the four systems</h2>
@@ -363,6 +355,7 @@ prediction-api  GET /version  reports model version, run id and dataset version<
 <ul>
 <li><b>Confirmation gate:</b> state-changing tools are parked, never run from a model call (section 2.5).</li>
 <li><b>Failure notice:</b> a failed tool yields no data for the model, and the runtime appends a notice to the answer that cannot be edited out.</li>
+<li><b>Answer check:</b> after the model answers, every hex identifier (run id, md5, commit, pod hash) and every metric-like decimal in the text is looked up in the tool results of the conversation. Decimals count as grounded when they equal a returned number rounded to the digits the answer used. Anything else is listed in a notice and in the <code>unverified_values</code> field of the response. Run over the 61 such values in the recorded live answers, it flagged none, and it flagged both values in a copy of one answer with a run id and an F1 altered.</li>
 <li><b>Four-system rule:</b> an answer that used the retraining tool is sent back once if DVC, MLflow, Airflow runs or Kubernetes were not all queried. This was added after the model skipped Airflow in the first recorded run of the scenario.</li>
 <li><b>Context budget:</b> tool results shown to the model are shortened to fit a per-turn limit (the free LLM tier accepts 8,000 tokens per request). The full results still go to the caller.</li>
 <li><b>Step budget:</b> at most 12 tool rounds, then the model must answer with the evidence it has.</li>
@@ -422,7 +415,7 @@ prediction-api  GET /version  reports model version, run id and dataset version<
 <h1>9. Testing, reliability, and safety</h1>
 
 <h2>9.1 Automated tests</h2>
-<p>There are 85 pytest tests (60 test functions, some parametrized) in 7 files. The language model, MLflow client, git and DVC runner, Airflow HTTP transport and Kubernetes clients are all replaced by fakes, so the suite needs no service, cluster or API key. <code>ruff check</code> and <code>ruff format --check</code> are clean.</p>
+<p>There are 87 pytest tests (62 test functions, some parametrized) in 7 files. The language model, MLflow client, git and DVC runner, Airflow HTTP transport and Kubernetes clients are all replaced by fakes, so the suite needs no service, cluster or API key. <code>ruff check</code> and <code>ruff format --check</code> are clean.</p>
 <table>
 <tr><th style="width:36%">Requirement</th><th>Test</th></tr>
 <tr><td>Tool selection and execution</td><td><code>test_selected_tool_is_executed_and_its_result_reaches_the_model</code>, <code>test_multi_tool_request_gathers_evidence_from_all_four_systems</code></td></tr>
@@ -434,9 +427,10 @@ prediction-api  GET /version  reports model version, run id and dataset version<
 <tr><td>Confirmation flow</td><td><code>test_k8s_restart_runs_exactly_once_after_user_confirmation</code>, <code>test_confirmation_cannot_be_used_from_another_session</code>, <code>test_training_is_never_triggered_without_confirmation</code></td></tr>
 <tr><td>Structured logs without secrets</td><td><code>test_structured_logs_record_tool_status_duration_and_request_id</code>, <code>test_secrets_are_redacted_from_logs</code>, <code>test_airflow_credentials_never_appear_in_agent_logs</code></td></tr>
 <tr><td>Command injection and allowlist</td><td><code>test_only_allowlisted_commands_can_run</code> (7 cases), <code>test_revision_arguments_cannot_inject_options</code> (6 cases)</td></tr>
+<tr><td>Answer check</td><td><code>test_answer_check_flags_values_that_no_tool_returned</code>, <code>test_orchestrator_marks_answers_with_ungrounded_values</code></td></tr>
 <tr><td>Four-system rule</td><td><code>test_retraining_verdict_is_not_accepted_until_all_four_systems_were_queried</code></td></tr>
 </table>
-<figure><img src="../../screenshots/term_tests.png" style="width:92%"><figcaption><b>Figure 13:</b> Lint and the full test suite: 85 passed.</figcaption></figure>
+<figure><img src="../../screenshots/term_tests.png" style="width:92%"><figcaption><b>Figure 13:</b> Lint and the full test suite: 87 passed.</figcaption></figure>
 
 <h2>9.2 Structured logs</h2>
 <p>Every tool call writes one JSON line with the tool name, status, duration and request id. Secret-looking keys and token patterns are masked by the formatter. These are real lines from the live demonstration in section 8.6, for the denied and the confirmed restart:</p>
@@ -501,7 +495,7 @@ prediction-api  GET /version  reports model version, run id and dataset version<
 <li><b>Workflow</b> <code>.github/workflows/ci.yml</code> runs on pull requests and on pushes to <code>main</code>:
   <ul>
   <li>installs the pinned dependencies, then runs <code>ruff check</code> and <code>ruff format --check</code>;</li>
-  <li>runs the 85 tests, with every external system mocked and no credentials;</li>
+  <li>runs the 87 tests, with every external system mocked and no credentials;</li>
   <li>validates the Kubernetes manifests (replicas, probes, resources, ClusterIP) and the DAG syntax.</li>
   </ul></li>
 <li><b>Result:</b> the job passed on every push of the pull request, in about one minute.</li>
@@ -515,7 +509,7 @@ api/main.py     prediction service (runs in Kubernetes)
 dags/           training_pipeline.py        training/   six pipeline stages
 kubernetes/     namespace, configmap, deployment, service, rbac
 config/         retraining_policy.yaml      scripts/    services, cluster, failure injection, data
-tests/          85 tests in 7 files         screenshots/  report/{evidence,conversations,source}
+tests/          87 tests in 7 files         screenshots/  report/{evidence,conversations,source}
 dvc.yaml  params.yaml  data/raw/dataset.csv.dvc  Dockerfile  requirements.txt  pyproject.toml</pre>
 
 <!-- ========================================================== 12 -->
@@ -524,7 +518,7 @@ dvc.yaml  params.yaml  data/raw/dataset.csv.dvc  Dockerfile  requirements.txt  p
 <tr><th style="width:50%">Limitation</th><th>Improvement</th></tr>
 <tr><td>Sessions and pending confirmations are held in the memory of one process.</td><td>Store them in Redis so the agent can run with several replicas and survive restarts.</td></tr>
 <tr><td>The free LLM tier allows 8,000 tokens per request and rate-limits heavily. Tool results shown to the model are shortened, and a multi-tool answer can take minutes (the live diagnosis in section 10.1 took about 170 s, mostly waiting on rate limits).</td><td>Use a paid tier, or choose a subset of tools per request to shrink the prompt.</td></tr>
-<tr><td>The answer text is not checked claim by claim against tool results. The runtime guarantees only the failure notices and the raw evidence.</td><td>Add a verification pass that matches ids and numbers in the answer to the evidence.</td></tr>
+<tr><td>The answer check covers only identifiers and metrics. States, counts and prose are not compared with the tool results, and all-digit or all-letter hashes (such as an md5 made only of digits) are skipped.</td><td>Extend the check to states and counts, or add a second model pass that verifies each claim against the evidence.</td></tr>
 <tr><td>The model is baked into the image, so a new model needs a manual image build.</td><td>A continuous-delivery step that builds and rolls out an image when a model version gets the <code>candidate</code> alias.</td></tr>
 <tr><td>The DVC remote is a local folder, so <code>dvc pull</code> works only on this machine.</td><td>Use S3 or GCS. <code>scripts/make_dataset.py</code> regenerates both dataset versions elsewhere.</td></tr>
 <tr><td>Airflow runs in standalone mode with SQLite and the simple auth manager.</td><td>PostgreSQL, a production auth manager and the KubernetesExecutor.</td></tr>

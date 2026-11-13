@@ -207,7 +207,7 @@ The suite needs no running service, no cluster and no API key: the LLM, MLflow c
 git/DVC runner, Airflow HTTP transport and Kubernetes clients are all replaced by fakes.
 It covers tool selection and execution, a multi-tool request across all four systems, tool
 timeouts, invalid requests, service failures, the "does not invent results" guarantee,
-rejection of unauthorized Kubernetes changes, the confirmation flow, and secret redaction in
+rejection of unauthorized Kubernetes changes, the confirmation flow, the answer check for ungrounded identifiers and metrics, and secret redaction in
 logs. GitHub Actions runs the same lint and tests on every pull request.
 
 ## 6. Injected failures (for the demonstration)

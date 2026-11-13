@@ -211,3 +211,34 @@ def test_retraining_verdict_is_not_accepted_until_all_four_systems_were_queried(
     assert response.answer == "complete answer"
     assert "airflow_list_dag_runs" in [c.tool for c in response.tool_calls]
     assert any("you must also query: ['airflow']" in m["content"] for m in llm.requests[-1])
+
+
+def test_answer_check_flags_values_that_no_tool_returned():
+    from agent.answer_check import unverified_values
+
+    evidence = [{"run_id": "abc123def456", "f1": 0.96454, "md5": "ac465752f88767fa7b7a2a45b3338f81"}]
+    grounded = "Run abc123def456 has F1 0.9645 and md5 ac465752f88767fa7b7a2a45b3338f81 (data-v2.0)."
+    assert unverified_values(grounded, evidence) == []
+    invented = "Run deadbeef1234 has F1 0.9912, md5 ac465752f88767fa7b7a2a45b3338f82 and F1 0.9650."
+    assert unverified_values(invented, evidence) == [
+        "deadbeef1234",
+        "ac465752f88767fa7b7a2a45b3338f82",
+        "0.9912",
+        "0.9650",
+    ]
+    # values the user supplied themselves are allowed
+    assert unverified_values("Live F1 0.8123.", [], "my live f1 is 0.8123") == []
+
+
+def test_orchestrator_marks_answers_with_ungrounded_values(make_agent, fake_mlflow):
+    fake_mlflow(runs=[make_run("abc123def456", 0.97)])
+    agent, _ = make_agent(
+        calls(("mlflow_best_run", {})),
+        say("Best is run abc123def456 (F1 0.970), not fedcba987654 (F1 0.999)."),
+    )
+
+    response = agent.chat("best model?")
+
+    assert response.unverified_values == ["fedcba987654", "0.999"]
+    assert "Answer check (added by the agent runtime)" in response.answer
+    assert "fedcba987654, 0.999" in response.answer
