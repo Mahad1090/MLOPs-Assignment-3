@@ -1,0 +1,30 @@
+[   0.4s] triggered manual__2026-11-13T20:05:25.083879+00:00
+[   0.5s] train_model                state=None try_number=0
+[   0.5s] validate_dataset           state=None try_number=0
+[   0.5s] preprocess_data            state=None try_number=0
+[   0.5s] evaluate_and_log_mlflow    state=None try_number=0
+[   0.5s] quality_gate               state=None try_number=0
+[   0.5s] register_model             state=None try_number=0
+[   1.6s] validate_dataset           state=queued try_number=1
+[   8.5s] validate_dataset           state=running try_number=1
+[   9.6s] validate_dataset           state=success try_number=1
+[   9.8s] INJECTED: MLflow server stopped
+[  10.9s] preprocess_data            state=running try_number=1
+[  14.2s] train_model                state=running try_number=1
+[  14.2s] preprocess_data            state=success try_number=1
+[  24.0s] train_model                state=up_for_retry try_number=2
+[  24.0s] MLflow server started again (outage over)
+[  39.1s] train_model                state=scheduled try_number=2
+[  40.2s] train_model                state=running try_number=2
+[  47.8s] train_model                state=success try_number=2
+[  48.9s] evaluate_and_log_mlflow    state=running try_number=1
+[  62.9s] evaluate_and_log_mlflow    state=success try_number=1
+[  62.9s] quality_gate               state=queued try_number=1
+[  63.9s] quality_gate               state=running try_number=1
+[  67.2s] quality_gate               state=success try_number=1
+[  67.2s] register_model             state=queued try_number=1
+[  68.2s] register_model             state=running try_number=1
+[  71.5s] register_model             state=success try_number=1
+[  71.5s] DAG run finished: success
+[  71.6s] train_model try 1: failed
+[  71.6s] train_model try 2: success

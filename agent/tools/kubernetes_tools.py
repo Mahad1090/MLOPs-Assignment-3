@@ -183,12 +183,17 @@ def _events(apis: Apis, namespace: str, warnings_only: bool, obj_name: str = "",
     return sorted(views, key=lambda e: e["last_seen"] or "")[-limit:]
 
 
-def _probe(probe: Any) -> dict[str, Any] | None:
+def _probe(probe: Any, ports: Any = None) -> dict[str, Any] | None:
     if probe is None:
         return None
     http = probe.http_get
+    port = http.port if http else None
+    # A named port (such as "http") is resolved, so the number is not left to be guessed.
+    for declared in ports or []:
+        if port is not None and declared.name == port:
+            port = f"{declared.name} = {declared.container_port}"
     return {
-        "http_get": f"{http.path} on port {http.port}" if http else None,
+        "http_get": f"{http.path} on port {port}" if http else None,
         "period_seconds": probe.period_seconds,
         "failure_threshold": probe.failure_threshold,
         "initial_delay_seconds": probe.initial_delay_seconds,
@@ -254,8 +259,8 @@ def pod_status(args: PodArgs, ctx: ToolContext) -> dict[str, Any]:
                 "restart_count": status.restart_count if status else 0,
                 "state": _state(status.state) if status else None,
                 "last_terminated_state": _state(status.last_state) if status else None,
-                "readiness_probe": _probe(container.readiness_probe),
-                "liveness_probe": _probe(container.liveness_probe),
+                "readiness_probe": _probe(container.readiness_probe, container.ports),
+                "liveness_probe": _probe(container.liveness_probe, container.ports),
                 "resources": {
                     "requests": dict(resources.requests or {}) if resources else {},
                     "limits": dict(resources.limits or {}) if resources else {},

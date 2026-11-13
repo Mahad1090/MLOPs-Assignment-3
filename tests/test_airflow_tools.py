@@ -130,3 +130,35 @@ def test_missing_run_is_an_error_not_an_empty_answer(fake_airflow):
     fake_airflow(lambda request: httpx.Response(404, json={"detail": "not found"}))
     with pytest.raises(ToolError, match="not found"):
         airflow_tools.get_dag_run(airflow_tools.DagRunArgs(dag_id="training_pipeline", run_id="x"), CTX)
+
+
+def test_retried_task_is_reported_even_though_the_run_succeeded(fake_airflow):
+    def handler(request: httpx.Request) -> httpx.Response:
+        path = request.url.path
+        if path.endswith(f"/dagRuns/{RUN}"):
+            return httpx.Response(200, json={"dag_run_id": RUN, "state": "success", "conf": {}})
+        if path.endswith("/taskInstances"):
+            return httpx.Response(200, json={"task_instances": [
+                {"task_id": "train_model", "state": "success", "try_number": 2, "max_tries": 2},
+                {"task_id": "validate_dataset", "state": "success", "try_number": 1, "max_tries": 2},
+            ]})  # fmt: skip
+        if path.endswith("/train_model/tries"):
+            return httpx.Response(200, json={"task_instances": [
+                {"try_number": 1, "state": "failed", "duration": 9.5},
+                {"try_number": 2, "state": "success", "duration": 8.0},
+            ]})  # fmt: skip
+        if path.endswith("/logs/1"):
+            return httpx.Response(200, json={"content": [
+                {"event": "stage 'train' crashed with exit code 1 (will retry)", "level": "error"},
+            ]})  # fmt: skip
+        return httpx.Response(404)
+
+    fake_airflow(handler)
+    result = airflow_tools.failed_tasks(airflow_tools.DagRunArgs(dag_id="training_pipeline", run_id=RUN), CTX)
+
+    assert result["run_state"] == "success" and result["failed_task_count"] == 0
+    assert result["retried_task_count"] == 1
+    retried = result["retried_tasks"][0]
+    assert retried["task_id"] == "train_model" and retried["final_state"] == "success"
+    assert [a["state"] for a in retried["attempts"]] == ["failed", "success"]
+    assert "will retry" in retried["failed_attempt_log_tail"][-1]

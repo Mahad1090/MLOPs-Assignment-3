@@ -100,3 +100,15 @@ def test_unreachable_api_server_maps_to_unavailable(fake_k8s):
     apis.core.list_namespaced_pod.side_effect = MaxRetryError(None, "/api/v1/pods")
     with pytest.raises(ToolUnavailableError, match="unreachable"):
         k8s.unhealthy_pods(k8s.NamespaceArgs(), CTX)
+
+
+def test_probe_named_ports_are_resolved_to_numbers():
+    probe = SimpleNamespace(
+        http_get=SimpleNamespace(path="/health/ready", port="http"),
+        period_seconds=5,
+        failure_threshold=3,
+        initial_delay_seconds=3,
+    )
+    ports = [SimpleNamespace(name="http", container_port=8000)]
+    assert k8s._probe(probe, ports)["http_get"] == "/health/ready on port http = 8000"
+    assert k8s._probe(None, ports) is None

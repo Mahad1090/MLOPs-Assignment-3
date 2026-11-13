@@ -230,7 +230,17 @@ scripts/inject_failure_airflow.sh        # quality gate threshold 0.999, gate fa
 python -m agent.cli -q "Did the last training pipeline run succeed? If not, why?"
 ```
 
-Both investigations are written up in the technical report.
+Two more injections used in the report:
+
+```bash
+scripts/inject_failure_k8s_restarts.sh          # liveness probe returns 404, Pods restart repeatedly
+python -m agent.cli -q "My prediction API pods keep restarting. Why?"
+scripts/inject_failure_k8s_restarts.sh restore
+
+.venv/bin/python scripts/demo_airflow_retry.py  # stops MLflow mid-run so train_model fails once, then retries
+```
+
+All investigations are written up in the technical report.
 
 ## 7. Evidence
 

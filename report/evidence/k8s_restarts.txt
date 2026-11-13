@@ -1,0 +1,12 @@
+$ kubectl -n mlops get pods
+NAME                              READY   STATUS    RESTARTS      AGE
+prediction-api-5cccb6b6f8-dr59d   1/1     Running   4 (27s ago)   3m9s
+prediction-api-5cccb6b6f8-pljh6   0/1     Running   4 (10s ago)   2m52s
+
+$ kubectl -n mlops get events --field-selector type=Warning | tail
+7m35s       Warning   Unhealthy   pod/prediction-api-584c858b9b-qzd5w   Readiness probe failed: Get "http://10.244.0.2:8000/health/ready": dial tcp 10.244.0.2:8000: connect: connection refused
+5m24s       Warning   Unhealthy   pod/prediction-api-584c858b9b-pndr4   Readiness probe failed: Get "http://10.244.0.7:8000/health/ready": dial tcp 10.244.0.7:8000: connect: connection refused
+40s         Warning   Unhealthy   pod/prediction-api-5cccb6b6f8-pljh6   Readiness probe failed: Get "http://10.244.0.9:8000/health/ready": dial tcp 10.244.0.9:8000: connect: connection refused
+22s         Warning   Unhealthy   pod/prediction-api-5cccb6b6f8-pljh6   Liveness probe failed: HTTP probe failed with statuscode: 404
+16s         Warning   Unhealthy   pod/prediction-api-5cccb6b6f8-dr59d   Readiness probe failed: Get "http://10.244.0.8:8000/health/ready": dial tcp 10.244.0.8:8000: connect: connection refused
+9s          Warning   Unhealthy   pod/prediction-api-5cccb6b6f8-dr59d   Liveness probe failed: HTTP probe failed with statuscode: 404

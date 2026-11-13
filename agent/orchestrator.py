@@ -52,7 +52,8 @@ code revision, not the dataset revision.
 model production-ready; mention the quality gate and the caveats returned.
 - Deployment health or "API unavailable": k8s_list_workloads and k8s_unhealthy_pods, then \
 k8s_pod_status and k8s_pod_logs of an affected pod, and k8s_services for endpoints.
-- Pipeline failures: airflow_failed_tasks, then airflow_task_logs if more detail is needed.
+- Pipeline failures or retries: airflow_failed_tasks (it also lists retried tasks and why their \
+first attempt failed), then airflow_task_logs if more detail is needed.
 - Whether to retrain: you MUST call all of mlflow_best_run, dvc_find_version, \
 k8s_deployed_version (which model run is serving), airflow_list_dag_runs (recent training runs) \
 and evaluate_retraining_need for the deployed model's run. If the top-ranked run was trained on \
