@@ -1,0 +1,60 @@
+name: CI
+
+on:
+  pull_request:
+  push:
+    branches: [main]
+
+permissions:
+  contents: read
+
+concurrency:
+  group: ci-${{ github.ref }}
+  cancel-in-progress: true
+
+jobs:
+  lint-and-test:
+    runs-on: ubuntu-latest
+    timeout-minutes: 20
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: actions/setup-python@v5
+        with:
+          python-version: "3.12"
+          cache: pip
+          cache-dependency-path: requirements.txt
+
+      - name: Install dependencies (pinned)
+        run: |
+          python -m pip install --upgrade pip
+          pip install -r requirements.txt
+          pip install -e . --no-deps
+
+      - name: Lint
+        run: |
+          ruff check .
+          ruff format --check .
+
+      # All external systems (LLM, MLflow, Airflow, Kubernetes, git/DVC) are mocked,
+      # so the tests need no credentials and no network services.
+      - name: Tests
+        run: pytest -v
+
+      - name: Validate Kubernetes manifests and DAG syntax
+        run: |
+          python - <<'PY'
+          import ast, pathlib, yaml
+          docs = [d for f in sorted(pathlib.Path("kubernetes").glob("*.yaml"))
+                  for d in yaml.safe_load_all(f.read_text()) if d]
+          kinds = {d["kind"] for d in docs}
+          assert {"Deployment", "Service", "ConfigMap"} <= kinds, kinds
+          dep = next(d for d in docs if d["kind"] == "Deployment")
+          container = dep["spec"]["template"]["spec"]["containers"][0]
+          assert dep["spec"]["replicas"] >= 2
+          assert {"readinessProbe", "livenessProbe", "resources"} <= container.keys()
+          assert {"requests", "limits"} <= container["resources"].keys()
+          assert next(d for d in docs if d["kind"] == "Service")["spec"]["type"] == "ClusterIP"
+          ast.parse(pathlib.Path("dags/training_pipeline.py").read_text())
+          print("manifests and DAG OK")
+          PY

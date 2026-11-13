@@ -1,0 +1,25 @@
+# Data stages are versioned and cached by DVC. Model training and evaluation are
+# orchestrated by Airflow (dags/training_pipeline.py) and tracked in MLflow; every
+# MLflow run records the DVC md5 of the dataset it was trained on.
+stages:
+  validate:
+    cmd: python -m training.validate
+    deps:
+      - data/raw/dataset.csv
+      - training/validate.py
+      - training/common.py
+    outs:
+      - reports/validation.json:
+          cache: false
+  preprocess:
+    cmd: python -m training.preprocess
+    deps:
+      - data/raw/dataset.csv
+      - reports/validation.json
+      - training/preprocess.py
+    params:
+      - preprocess.test_size
+      - preprocess.seed
+    outs:
+      - data/processed/train.csv
+      - data/processed/test.csv

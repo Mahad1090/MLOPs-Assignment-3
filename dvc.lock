@@ -1,0 +1,50 @@
+schema: '2.0'
+stages:
+  validate:
+    cmd: python -m training.validate
+    deps:
+    - path: data/raw/dataset.csv
+      hash: md5
+      md5: ac465752f88767fa7b7a2a45b3338f81
+      size: 85539
+    - path: training/common.py
+      hash: md5
+      md5: c0bc54ab125dc7557ad3aa3fef659842
+      size: 1974
+    - path: training/validate.py
+      hash: md5
+      md5: 1a6e0d4899141043abea8c400336da55
+      size: 2611
+    outs:
+    - path: reports/validation.json
+      hash: md5
+      md5: e242a187bc22a61719cdd9ef4e68ca6b
+      size: 123
+  preprocess:
+    cmd: python -m training.preprocess
+    deps:
+    - path: data/raw/dataset.csv
+      hash: md5
+      md5: ac465752f88767fa7b7a2a45b3338f81
+      size: 85539
+    - path: reports/validation.json
+      hash: md5
+      md5: e242a187bc22a61719cdd9ef4e68ca6b
+      size: 123
+    - path: training/preprocess.py
+      hash: md5
+      md5: 063f780cc989b669f7b7b26f6e2dd985
+      size: 1366
+    params:
+      params.yaml:
+        preprocess.seed: 42
+        preprocess.test_size: 0.2
+    outs:
+    - path: data/processed/test.csv
+      hash: md5
+      md5: 10a1b7ce0e6827c1e691cb375c104ab8
+      size: 17487
+    - path: data/processed/train.csv
+      hash: md5
+      md5: f9d7b23bef29921ac843fa03852c46db
+      size: 68544

@@ -1,0 +1,50 @@
+[build-system]
+requires = ["setuptools>=68"]
+build-backend = "setuptools.build_meta"
+
+[project]
+name = "mlops-agent"
+version = "1.0.0"
+description = "AI agent that operates DVC, MLflow, Airflow and Kubernetes through structured tools"
+requires-python = ">=3.12"
+dependencies = [
+    "fastapi>=0.115",
+    "uvicorn[standard]>=0.30",
+    "pydantic>=2.7",
+    "pydantic-settings>=2.3",
+    "httpx>=0.27",
+    "openai>=1.50",
+    "kubernetes>=30",
+    "mlflow>=3,<4",
+    "dvc>=3,<4",
+    "scikit-learn>=1.5",
+    "pandas>=2.2",
+    "joblib>=1.4",
+    "pyyaml>=6",
+]
+
+[project.optional-dependencies]
+dev = ["pytest>=8", "ruff>=0.6"]
+
+[tool.setuptools.packages.find]
+include = ["agent*", "api*", "training*"]
+
+[tool.pytest.ini_options]
+testpaths = ["tests"]
+addopts = "-q"
+filterwarnings = ["ignore::DeprecationWarning", "ignore::FutureWarning"]
+
+[tool.ruff]
+line-length = 110
+target-version = "py312"
+extend-exclude = [".airflow", ".mlflow", ".venv-airflow"]
+
+[tool.ruff.lint]
+select = ["E", "F", "I", "B", "UP", "S", "SIM"]
+ignore = ["S101"]  # asserts are fine (pytest)
+
+[tool.ruff.lint.per-file-ignores]
+"tests/*" = ["S105", "S106", "S108"]
+"training/*" = ["S603", "S607"]
+"dags/*" = ["S603"]
+"scripts/*" = ["S603", "S607"]

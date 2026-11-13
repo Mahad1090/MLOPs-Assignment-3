@@ -218,3 +218,16 @@ __marimo__/
 
 # Streamlit
 .streamlit/secrets.toml
+
+# --- project-specific ---
+.venv-airflow/
+.airflow/
+.mlflow/
+mlruns/
+mlartifacts/
+/models/
+/serving_model/
+/data/processed/
+*.pkl
+.ruff_cache/
+kubeconfig*
