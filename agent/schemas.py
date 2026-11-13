@@ -105,4 +105,5 @@ class ChatResponse(BaseModel):
     answer: str
     tool_calls: list[ToolCallRecord] = []
     failed_tools: list[str] = []
+    unverified_values: list[str] = []
     pending_actions: list[PendingActionView] = []

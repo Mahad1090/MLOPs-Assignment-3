@@ -57,10 +57,10 @@ and the raw tool results are returned to the caller next to the answer.
 5. When the LLM stops calling tools, its text becomes the answer. The runtime then appends,
    independently of the LLM, a *tool availability notice* for every failed call and a list of
    actions awaiting confirmation.
-6. Two runtime guards act on the LLM's draft: tool results are shrunk to a per-turn context
+6. Three runtime guards act on the LLM's draft: tool results are shrunk to a per-turn context
    budget (the free LLM tier accepts 8,000 tokens per request), and an answer that used
    `evaluate_retraining_need` is sent back once if DVC, MLflow, Airflow DAG runs or Kubernetes
-   were not all queried.
+   were not all queried. Finally, identifiers and metrics in the answer that no tool returned are listed in a notice and in `unverified_values` (`agent/answer_check.py`).
 7. The response contains the answer, every tool call with arguments, status, duration and
    result, the failed tools and the pending actions.
 
@@ -110,6 +110,7 @@ then confirms that md5 really exists in the repository history.
 | Command injection | No shell anywhere; command allowlist; regex-validated revisions, DAG ids and pod names | `dvc_tools._run`, argument models |
 | A tool hangs | Per-tool time budget in the executor plus network timeouts in each client | `ToolRegistry.execute` |
 | Secrets leak | Secrets only from environment / `.env` (git-ignored), held as `SecretStr`; log formatter redacts secret-looking keys and token patterns | `config.py`, `logging_utils.py` |
+| LLM quotes a value no tool returned | Hex identifiers and metric-like decimals in the answer are looked up in the tool results; unmatched ones are flagged in the response and in the answer text | `answer_check.py`, `Orchestrator._finish` |
 | Bad model promoted | `register_model` is downstream of `quality_gate`, and re-checks the gate tag itself | `dags/training_pipeline.py`, `training/register.py` |
 
 `kubernetes/rbac.yaml` additionally defines a least-privilege ServiceAccount/Role (get/list on

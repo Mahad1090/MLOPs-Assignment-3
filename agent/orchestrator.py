@@ -9,6 +9,7 @@ import uuid
 from dataclasses import dataclass, field
 from typing import Any
 
+from agent.answer_check import unverified_values
 from agent.llm import LLMClient, LLMError, ToolCall
 from agent.logging_utils import get_logger, log_event
 from agent.schemas import (
@@ -326,6 +327,12 @@ class Orchestrator:
         remember: bool = True,
     ) -> ChatResponse:
         failed = [r for r in records if r.status in FAILED_STATUSES]
+        # Checked before this turn is stored, so the answer cannot vouch for itself.
+        unverified = unverified_values(
+            answer,
+            [r.result for r in records if r.status in ("ok", "confirmation_required")],
+            " ".join(m["content"] for m in session.messages) + " " + user_content,
+        )
         pending = [
             PendingActionView(action_id=p.action_id, tool=p.tool, arguments=p.arguments, summary=p.summary)
             for p in session.pending.values()
@@ -346,6 +353,12 @@ class Orchestrator:
                 + "\nNo data was obtained from the calls above. Statements about those systems "
                 "in this answer are not backed by tool evidence."
             )
+        if unverified:
+            answer += (
+                "\n\n---\nAnswer check (added by the agent runtime): these values do not appear in "
+                f"any tool result of this conversation: {', '.join(unverified)}. "
+                "Treat them as unverified."
+            )
         if pending:
             lines = [f"- {p.summary} (action id: {p.action_id})" for p in pending]
             answer += "\n\n---\nAwaiting your confirmation (nothing has been executed):\n" + "\n".join(lines)
@@ -358,6 +371,7 @@ class Orchestrator:
             duration_ms=round((time.perf_counter() - started) * 1000, 1),
             tool_calls=[r.tool for r in records],
             failed_tools=[r.tool for r in failed],
+            unverified_values=unverified,
             pending_actions=len(pending),
         )
         return ChatResponse(
@@ -366,5 +380,6 @@ class Orchestrator:
             answer=answer,
             tool_calls=records,
             failed_tools=sorted({r.tool for r in failed}),
+            unverified_values=unverified,
             pending_actions=pending,
         )
