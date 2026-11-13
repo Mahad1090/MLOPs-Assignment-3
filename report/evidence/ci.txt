@@ -1,1 +1,1 @@
-lint-and-test	pass	1m4s	https://github.com/Mahad1090/MLOPs-Assignment-3/actions/runs/43482661783/job/132082849819	
+lint-and-test	pass	55s	https://github.com/Mahad1090/MLOPs-Assignment-3/actions/runs/43482903421/job/132083714228	

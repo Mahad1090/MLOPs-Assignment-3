@@ -1,0 +1,490 @@
+{
+ "request_id": "e1a6d542e3824718a433f4c642159303",
+ "session_id": "diag-live",
+ "answer": "**Known facts**\n\n- **Deployment status** \u2013 `k8s_list_workloads` (mlops namespace) shows the `prediction\u2011api` Deployment has 2 desired replicas but **0 ready replicas**; the `Available` condition is `False` with reason *MinimumReplicasUnavailable*.\n- **Pod readiness** \u2013 `k8s_unhealthy_pods` reports both pods (`prediction\u2011api\u2011584c858b9b\u20117jjrt` and `prediction\u2011api\u2011584c858b9b\u2011fzw5t`) are in *Running* phase but **not ready**; the `Ready` and `ContainersReady` conditions are `False` because the container `prediction\u2011api` is not ready.\n- **Readiness\u2011probe failures** \u2013 `k8s_pod_logs` (pod `prediction\u2011api\u2011584c858b9b\u20117jjrt`) contains repeated entries:  \n\n  ```\n  {\"event\":\"readiness_failed\",\"level\":\"ERROR\",\"reason\":\"FileNotFoundError: [Errno 2] No such file or directory: '/app/model/model\u2011v2\u2011missing.pkl'\"}\n  ```  \n\n  The readiness HTTP endpoint (`/health/ready`) returns **503 Service Unavailable**.\n- **Service endpoints** \u2013 `k8s_services` shows the `prediction\u2011api` Service has **no ready endpoints**; both pods are listed under `not_ready_endpoints`.\n- **Deployed version info** \u2013 `k8s_deployed_version` reports the Deployment is using image `prediction\u2011api:1.0.0` (label `1.0.0`). The ConfigMap sets `MODEL_PATH` to `/app/model/model\u2011v2\u2011missing.pkl`. The `/version` endpoint cannot be queried (HTTP\u202f503).\n\n**Uncertainties**\n\n- Why the expected model file (`model\u2011v2\u2011missing.pkl`) is absent from the container image or mounted volume \u2013 the system does not provide a trace of the build or artifact publishing step.\n- Whether a newer model artifact exists elsewhere (e.g., in the MLflow model registry) that should be referenced instead of the missing file.\n- If the ConfigMap was recently changed without rebuilding the image, causing a mismatch between the image contents and the configured path.\n\n**Recommended actions**\n\n1. **Verify the model artifact**  \n   - Check the MLflow model registry (`mlflow_model_registry`) for the latest approved model version and its artifact path.  \n   - Confirm that the artifact `model\u2011v2\u2011missing.pkl` exists in the image or in a mounted volume.\n\n2. **Fix the model path**  \n   - If the correct model file has a different name or location, update the `MODEL_PATH` entry in the ConfigMap to point to the existing file.  \n   - Apply the updated ConfigMap: `kubectl apply -f <configmap.yaml>` (or via your CI/CD pipeline).\n\n3. **Re\u2011deploy the corrected image**  \n   - Build a new container image that includes the required model file, tag it (e.g., `prediction\u2011api:1.0.1`), and push it to the registry.  \n   - Update the Deployment to use the new image tag (or roll out a new version via `k8s_restart_deployment` after confirming the change).  \n   - **Note:** No restart has been performed yet; any `k8s_restart_deployment` call would return `confirmation_required` and would not have been executed.\n\n4. **Validate readiness**  \n   - After the Deployment rolls out, run `k8s_list_workloads` and `k8s_services` again to ensure at least the desired number of replicas become **Ready** and the Service reports ready endpoints.  \n   - Test the `/health/ready` and `/health/live` endpoints; they should return **200 OK**.\n\n5. **Monitor**  \n   - Keep an eye on pod logs (`k8s_pod_logs`) for any further errors.  \n   - Verify the `/version` endpoint now returns the expected model run ID and dataset version.\n\nBy addressing the missing model file and ensuring the Deployment\u2019s ConfigMap matches the actual artifact, the readiness probe will succeed, the pods will become ready, and the prediction API will be reachable.",
+ "tool_calls": [
+  {
+   "tool": "k8s_list_workloads",
+   "arguments": {
+    "namespace": ""
+   },
+   "status": "ok",
+   "duration_ms": 31.9,
+   "result": {
+    "namespace": "mlops",
+    "deployments": [
+     {
+      "name": "prediction-api",
+      "desired_replicas": 2,
+      "ready_replicas": 0,
+      "updated_replicas": 2,
+      "available_replicas": 0,
+      "unavailable_replicas": 2,
+      "images": [
+       "prediction-api:1.0.0"
+      ],
+      "version_label": "1.0.0",
+      "revision": "2",
+      "conditions": [
+       {
+        "type": "Progressing",
+        "status": "True",
+        "reason": "NewReplicaSetAvailable",
+        "message": "ReplicaSet \"prediction-api-584c858b9b\" has successfully progressed."
+       },
+       {
+        "type": "Available",
+        "status": "False",
+        "reason": "MinimumReplicasUnavailable",
+        "message": "Deployment does not have minimum availability."
+       }
+      ]
+     }
+    ],
+    "pods": [
+     {
+      "name": "prediction-api-584c858b9b-7jjrt",
+      "phase": "Running",
+      "ready": false,
+      "containers_ready": "0/1",
+      "restarts": 0,
+      "waiting_reasons": [],
+      "terminating": false,
+      "node": "mlops-control-plane",
+      "pod_ip": "10.244.0.13",
+      "started_at": "2026-11-13T18:49:02+00:00",
+      "images": [
+       "prediction-api:1.0.0"
+      ]
+     },
+     {
+      "name": "prediction-api-584c858b9b-fzw5t",
+      "phase": "Running",
+      "ready": false,
+      "containers_ready": "0/1",
+      "restarts": 0,
+      "waiting_reasons": [],
+      "terminating": false,
+      "node": "mlops-control-plane",
+      "pod_ip": "10.244.0.14",
+      "started_at": "2026-11-13T18:49:02+00:00",
+      "images": [
+       "prediction-api:1.0.0"
+      ]
+     }
+    ]
+   },
+   "error": null
+  },
+  {
+   "tool": "k8s_unhealthy_pods",
+   "arguments": {
+    "namespace": ""
+   },
+   "status": "ok",
+   "duration_ms": 27.0,
+   "result": {
+    "namespace": "mlops",
+    "total_pods": 2,
+    "healthy_pods": 0,
+    "unhealthy_pods": [
+     {
+      "name": "prediction-api-584c858b9b-7jjrt",
+      "phase": "Running",
+      "ready": false,
+      "containers_ready": "0/1",
+      "restarts": 0,
+      "waiting_reasons": [],
+      "terminating": false,
+      "node": "mlops-control-plane",
+      "pod_ip": "10.244.0.13",
+      "started_at": "2026-11-13T18:49:02+00:00",
+      "images": [
+       "prediction-api:1.0.0"
+      ],
+      "container_states": {
+       "prediction-api": {
+        "state": "running",
+        "started_at": "2026-11-13T18:49:02+00:00"
+       }
+      },
+      "not_ready_conditions": [
+       {
+        "type": "Ready",
+        "reason": "ContainersNotReady",
+        "message": "containers with unready status: [prediction-api]"
+       },
+       {
+        "type": "ContainersReady",
+        "reason": "ContainersNotReady",
+        "message": "containers with unready status: [prediction-api]"
+       }
+      ]
+     },
+     {
+      "name": "prediction-api-584c858b9b-fzw5t",
+      "phase": "Running",
+      "ready": false,
+      "containers_ready": "0/1",
+      "restarts": 0,
+      "waiting_reasons": [],
+      "terminating": false,
+      "node": "mlops-control-plane",
+      "pod_ip": "10.244.0.14",
+      "started_at": "2026-11-13T18:49:02+00:00",
+      "images": [
+       "prediction-api:1.0.0"
+      ],
+      "container_states": {
+       "prediction-api": {
+        "state": "running",
+        "started_at": "2026-11-13T18:49:02+00:00"
+       }
+      },
+      "not_ready_conditions": [
+       {
+        "type": "Ready",
+        "reason": "ContainersNotReady",
+        "message": "containers with unready status: [prediction-api]"
+       },
+       {
+        "type": "ContainersReady",
+        "reason": "ContainersNotReady",
+        "message": "containers with unready status: [prediction-api]"
+       }
+      ]
+     }
+    ],
+    "container_restarts": [],
+    "warning_events": [
+     {
+      "type": "Warning",
+      "reason": "Unhealthy",
+      "object": "Pod/prediction-api-59d79779d-75b7m",
+      "message": "Readiness probe failed: Get \"http://10.244.0.5:8000/health/ready\": dial tcp 10.244.0.5:8000: connect: connection refused",
+      "count": 2,
+      "last_seen": "2026-11-13T18:09:31+00:00"
+     },
+     {
+      "type": "Warning",
+      "reason": "Unhealthy",
+      "object": "Pod/prediction-api-59d79779d-dqtp8",
+      "message": "Readiness probe failed: Get \"http://10.244.0.6:8000/health/ready\": dial tcp 10.244.0.6:8000: connect: connection refused",
+      "count": 2,
+      "last_seen": "2026-11-13T18:09:31+00:00"
+     },
+     {
+      "type": "Warning",
+      "reason": "Unhealthy",
+      "object": "Pod/prediction-api-59d79779d-srx7v",
+      "message": "Readiness probe failed: Get \"http://10.244.0.7:8000/health/ready\": dial tcp 10.244.0.7:8000: connect: connection refused",
+      "count": 1,
+      "last_seen": "2026-11-13T18:09:36+00:00"
+     },
+     {
+      "type": "Warning",
+      "reason": "Unhealthy",
+      "object": "Pod/prediction-api-59d79779d-srx7v",
+      "message": "Readiness probe failed: HTTP probe failed with statuscode: 503",
+      "count": 24,
+      "last_seen": "2026-11-13T18:11:36+00:00"
+     },
+     {
+      "type": "Warning",
+      "reason": "Unhealthy",
+      "object": "Pod/prediction-api-59d79779d-8gtq9",
+      "message": "Readiness probe failed: HTTP probe failed with statuscode: 503",
+      "count": 25,
+      "last_seen": "2026-11-13T18:11:38+00:00"
+     },
+     {
+      "type": "Warning",
+      "reason": "Unhealthy",
+      "object": "Pod/prediction-api-584c858b9b-7jjrt",
+      "message": "Readiness probe failed: HTTP probe failed with statuscode: 503",
+      "count": 5,
+      "last_seen": "2026-11-13T18:49:28+00:00"
+     },
+     {
+      "type": "Warning",
+      "reason": "Unhealthy",
+      "object": "Pod/prediction-api-584c858b9b-fzw5t",
+      "message": "Readiness probe failed: HTTP probe failed with statuscode: 503",
+      "count": 5,
+      "last_seen": "2026-11-13T18:49:28+00:00"
+     }
+    ]
+   },
+   "error": null
+  },
+  {
+   "tool": "k8s_pod_status",
+   "arguments": {
+    "namespace": "",
+    "pod_name": "prediction-api-584c858b9b-7jjrt"
+   },
+   "status": "ok",
+   "duration_ms": 36.0,
+   "result": {
+    "name": "prediction-api-584c858b9b-7jjrt",
+    "phase": "Running",
+    "ready": false,
+    "containers_ready": "0/1",
+    "restarts": 0,
+    "waiting_reasons": [],
+    "terminating": false,
+    "node": "mlops-control-plane",
+    "pod_ip": "10.244.0.13",
+    "started_at": "2026-11-13T18:49:02+00:00",
+    "images": [
+     "prediction-api:1.0.0"
+    ],
+    "namespace": "mlops",
+    "conditions": [
+     {
+      "type": "PodReadyToStartContainers",
+      "status": "True",
+      "reason": null,
+      "message": null
+     },
+     {
+      "type": "Initialized",
+      "status": "True",
+      "reason": null,
+      "message": null
+     },
+     {
+      "type": "Ready",
+      "status": "False",
+      "reason": "ContainersNotReady",
+      "message": "containers with unready status: [prediction-api]"
+     },
+     {
+      "type": "ContainersReady",
+      "status": "False",
+      "reason": "ContainersNotReady",
+      "message": "containers with unready status: [prediction-api]"
+     },
+     {
+      "type": "PodScheduled",
+      "status": "True",
+      "reason": null,
+      "message": null
+     }
+    ],
+    "containers": [
+     {
+      "name": "prediction-api",
+      "image": "prediction-api:1.0.0",
+      "ready": false,
+      "restart_count": 0,
+      "state": {
+       "state": "running",
+       "started_at": "2026-11-13T18:49:02+00:00"
+      },
+      "last_terminated_state": null,
+      "readiness_probe": {
+       "http_get": "/health/ready on port http",
+       "period_seconds": 5,
+       "failure_threshold": 3,
+       "initial_delay_seconds": 3
+      },
+      "liveness_probe": {
+       "http_get": "/health/live on port http",
+       "period_seconds": 10,
+       "failure_threshold": 3,
+       "initial_delay_seconds": 10
+      },
+      "resources": {
+       "requests": {
+        "cpu": "100m",
+        "memory": "128Mi"
+       },
+       "limits": {
+        "cpu": "500m",
+        "memory": "256Mi"
+       }
+      }
+     }
+    ],
+    "events": [
+     {
+      "type": "Normal",
+      "reason": "Scheduled",
+      "object": "Pod/prediction-api-584c858b9b-7jjrt",
+      "message": "Successfully assigned mlops/prediction-api-584c858b9b-7jjrt to mlops-control-plane",
+      "count": null,
+      "last_seen": "2026-11-13T18:49:02+00:00"
+     },
+     {
+      "type": "Normal",
+      "reason": "Pulled",
+      "object": "Pod/prediction-api-584c858b9b-7jjrt",
+      "message": "Container image \"prediction-api:1.0.0\" already present on machine and can be accessed by the pod",
+      "count": 1,
+      "last_seen": "2026-11-13T18:49:02+00:00"
+     },
+     {
+      "type": "Normal",
+      "reason": "Created",
+      "object": "Pod/prediction-api-584c858b9b-7jjrt",
+      "message": "Container created",
+      "count": 1,
+      "last_seen": "2026-11-13T18:49:02+00:00"
+     },
+     {
+      "type": "Normal",
+      "reason": "Started",
+      "object": "Pod/prediction-api-584c858b9b-7jjrt",
+      "message": "Container started",
+      "count": 1,
+      "last_seen": "2026-11-13T18:49:02+00:00"
+     },
+     {
+      "type": "Warning",
+      "reason": "Unhealthy",
+      "object": "Pod/prediction-api-584c858b9b-7jjrt",
+      "message": "Readiness probe failed: HTTP probe failed with statuscode: 503",
+      "count": 10,
+      "last_seen": "2026-11-13T18:49:53+00:00"
+     }
+    ]
+   },
+   "error": null
+  },
+  {
+   "tool": "k8s_services",
+   "arguments": {
+    "namespace": ""
+   },
+   "status": "ok",
+   "duration_ms": 22.1,
+   "result": {
+    "namespace": "mlops",
+    "services": [
+     {
+      "name": "prediction-api",
+      "type": "ClusterIP",
+      "cluster_ip": "10.96.146.159",
+      "ports": [
+       {
+        "name": "http",
+        "port": 8000,
+        "target_port": "http"
+       }
+      ],
+      "selector": {
+       "app.kubernetes.io/name": "prediction-api"
+      },
+      "ready_endpoints": [],
+      "not_ready_endpoints": [
+       {
+        "addresses": [
+         "10.244.0.13"
+        ],
+        "pod": "prediction-api-584c858b9b-7jjrt"
+       },
+       {
+        "addresses": [
+         "10.244.0.14"
+        ],
+        "pod": "prediction-api-584c858b9b-fzw5t"
+       }
+      ],
+      "can_serve_traffic": false
+     }
+    ]
+   },
+   "error": null
+  },
+  {
+   "tool": "k8s_pod_logs",
+   "arguments": {
+    "namespace": "",
+    "pod_name": "prediction-api-584c858b9b-7jjrt",
+    "tail_lines": 30
+   },
+   "status": "ok",
+   "duration_ms": 20.4,
+   "result": {
+    "pod": "prediction-api-584c858b9b-7jjrt",
+    "namespace": "mlops",
+    "previous_container": false,
+    "line_count": 18,
+    "lines": [
+     "INFO:     10.244.0.1:52454 - \"GET /health/ready HTTP/1.1\" 503 Service Unavailable",
+     "{\"ts\": \"2026-11-13T18:50:18+0000\", \"event\": \"readiness_failed\", \"level\": \"ERROR\", \"reason\": \"FileNotFoundError: [Errno 2] No such file or directory: '/app/model/model-v2-missing.pkl'\"}",
+     "INFO:     10.244.0.1:52462 - \"GET /health/ready HTTP/1.1\" 503 Service Unavailable",
+     "{\"ts\": \"2026-11-13T18:50:22+0000\", \"event\": \"readiness_failed\", \"level\": \"ERROR\", \"reason\": \"FileNotFoundError: [Errno 2] No such file or directory: '/app/model/model-v2-missing.pkl'\"}",
+     "INFO:     10.244.0.1:35672 - \"GET /health/ready HTTP/1.1\" 503 Service Unavailable",
+     "INFO:     10.244.0.1:35686 - \"GET /health/live HTTP/1.1\" 200 OK",
+     "{\"ts\": \"2026-11-13T18:50:27+0000\", \"event\": \"readiness_failed\", \"level\": \"ERROR\", \"reason\": \"FileNotFoundError: [Errno 2] No such file or directory: '/app/model/model-v2-missing.pkl'\"}",
+     "INFO:     10.244.0.1:35694 - \"GET /health/ready HTTP/1.1\" 503 Service Unavailable",
+     "{\"ts\": \"2026-11-13T18:50:32+0000\", \"event\": \"readiness_failed\", \"level\": \"ERROR\", \"reason\": \"FileNotFoundError: [Errno 2] No such file or directory: '/app/model/model-v2-missing.pkl'\"}",
+     "INFO:     10.244.0.1:54388 - \"GET /health/ready HTTP/1.1\" 503 Service Unavailable",
+     "INFO:     10.244.0.1:54400 - \"GET /health/live HTTP/1.1\" 200 OK",
+     "{\"ts\": \"2026-11-13T18:50:37+0000\", \"event\": \"readiness_failed\", \"level\": \"ERROR\", \"reason\": \"FileNotFoundError: [Errno 2] No such file or directory: '/app/model/model-v2-missing.pkl'\"}",
+     "INFO:     10.244.0.1:54416 - \"GET /health/ready HTTP/1.1\" 503 Service Unavailable",
+     "{\"ts\": \"2026-11-13T18:50:42+0000\", \"event\": \"readiness_failed\", \"level\": \"ERROR\", \"reason\": \"FileNotFoundError: [Errno 2] No such file or directory: '/app/model/model-v2-missing.pkl'\"}",
+     "INFO:     10.244.0.1:45896 - \"GET /health/ready HTTP/1.1\" 503 Service Unavailable",
+     "INFO:     10.244.0.1:45910 - \"GET /health/live HTTP/1.1\" 200 OK",
+     "{\"ts\": \"2026-11-13T18:50:47+0000\", \"event\": \"readiness_failed\", \"level\": \"ERROR\", \"reason\": \"FileNotFoundError: [Errno 2] No such file or directory: '/app/model/model-v2-missing.pkl'\"}",
+     "INFO:     10.244.0.1:45926 - \"GET /health/ready HTTP/1.1\" 503 Service Unavailable"
+    ]
+   },
+   "error": null
+  },
+  {
+   "tool": "k8s_deployed_version",
+   "arguments": {
+    "deployment": "prediction-api",
+    "namespace": ""
+   },
+   "status": "ok",
+   "duration_ms": 27.4,
+   "result": {
+    "namespace": "mlops",
+    "deployment": {
+     "name": "prediction-api",
+     "desired_replicas": 2,
+     "ready_replicas": 0,
+     "updated_replicas": 2,
+     "available_replicas": 0,
+     "unavailable_replicas": 2,
+     "images": [
+      "prediction-api:1.0.0"
+     ],
+     "version_label": "1.0.0",
+     "revision": "2",
+     "conditions": [
+      {
+       "type": "Progressing",
+       "status": "True",
+       "reason": "NewReplicaSetAvailable",
+       "message": "ReplicaSet \"prediction-api-584c858b9b\" has successfully progressed."
+      },
+      {
+       "type": "Available",
+       "status": "False",
+       "reason": "MinimumReplicasUnavailable",
+       "message": "Deployment does not have minimum availability."
+      }
+     ]
+    },
+    "image": "prediction-api:1.0.0",
+    "image_tag": "1.0.0",
+    "rollout_complete": false,
+    "configmap": {
+     "APP_VERSION": "1.0.0",
+     "LOG_LEVEL": "INFO",
+     "MODEL_PATH": "/app/model/model-v2-missing.pkl"
+    },
+    "live_version_endpoint": null,
+    "live_version_error": "application did not answer /version: Kubernetes API error HTTP 503: Service Unavailable"
+   },
+   "error": null
+  }
+ ],
+ "failed_tools": [],
+ "pending_actions": []
+}

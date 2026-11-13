@@ -1,4 +1,4 @@
-# MLOps AI Agent — Assignment 03
+# MLOps AI Agent: Assignment 03
 
 A conversational agent that answers operational questions about a machine-learning system by
 calling real tools, not by guessing:
@@ -14,7 +14,7 @@ The LLM (Groq, through the OpenAI-compatible API) only selects tools and words t
 Every answer is returned together with the raw tool results it is based on.
 
 - Design, tool choices and safety model: [architecture.md](architecture.md)
-- Technical report with evidence, conversations and failure investigations: [report/technical_report.md](report/technical_report.md)
+- Technical report (PDF) with architecture, evidence, five agent conversations and two failure investigations: [report/23i-0537-MLOps-A3-REPORT.pdf](report/23i-0537-MLOps-A3-REPORT.pdf)
 
 ## Repository layout
 
@@ -46,7 +46,7 @@ Requirements: Linux or macOS, Python 3.12, Docker, git. No root access is needed
 git clone https://github.com/Mahad1090/MLOPs-Assignment-3.git
 cd MLOPs-Assignment-3
 
-# project environment (agent, training, tests) — pinned versions
+# project environment (agent, training, tests), pinned versions
 python3.12 -m venv .venv
 .venv/bin/pip install -r requirements.txt
 .venv/bin/pip install -e . --no-deps
@@ -213,11 +213,11 @@ logs. GitHub Actions runs the same lint and tests on every pull request.
 ## 6. Injected failures (for the demonstration)
 
 ```bash
-scripts/inject_failure_k8s.sh            # ConfigMap points at a missing model → Pods never Ready
+scripts/inject_failure_k8s.sh            # ConfigMap points at a missing model, Pods never Ready
 python -m agent.cli -q "Why is my prediction API unavailable?"
 scripts/inject_failure_k8s.sh restore
 
-scripts/inject_failure_airflow.sh        # quality gate threshold 0.999 → gate fails, nothing registered
+scripts/inject_failure_airflow.sh        # quality gate threshold 0.999, gate fails, nothing registered
 python -m agent.cli -q "Did the last training pipeline run succeed? If not, why?"
 ```
 
@@ -225,7 +225,9 @@ Both investigations are written up in the technical report.
 
 ## 7. Evidence
 
-- `report/evidence/` — exported output from DVC, MLflow, Airflow, Kubernetes and CI
-- `report/conversations/` — the five agent conversations and two failure investigations, each
+- `report/23i-0537-MLOps-A3-REPORT.pdf`: the technical report. Its source is `report/source/`;
+  rebuild it with `.venv/bin/python report/source/build.py` (needs Chrome).
+- `report/evidence/`: exported output from DVC, MLflow, Airflow, Kubernetes, CI and the agent API
+- `report/conversations/`: the five agent conversations and two failure investigations, each
   with the raw tool results
-- `screenshots/` — MLflow UI
+- `screenshots/`: MLflow, Airflow and GitHub UI screenshots, Swagger pages and terminal captures
