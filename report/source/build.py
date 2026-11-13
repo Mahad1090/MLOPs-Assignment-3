@@ -24,7 +24,9 @@ from agent.tools import build_registry  # noqa: E402
 
 
 def tools_table() -> str:
-    rows = ['<table><tr><th style="width:31%">Tool</th><th>What it does</th><th class="c" style="width:12%">Changes state</th></tr>']
+    rows = [
+        '<table><tr><th style="width:31%">Tool</th><th>What it does</th><th class="c" style="width:12%">Changes state</th></tr>'
+    ]
     last = None
     for tool in build_registry().tools():
         if tool.category != last:
@@ -35,7 +37,9 @@ def tools_table() -> str:
             first = first[:137].rsplit(" ", 1)[0] + "..."
         state = "<b>yes, after confirmation</b>" if tool.mutating else "no"
         end = "" if first.endswith("...") else "."
-        rows.append(f'<tr><td><code>{tool.name}</code></td><td>{html.escape(first)}{end}</td><td class="c">{state}</td></tr>')
+        rows.append(
+            f'<tr><td><code>{tool.name}</code></td><td>{html.escape(first)}{end}</td><td class="c">{state}</td></tr>'
+        )
     rows.append("</table>")
     return "\n".join(rows)
 
@@ -51,9 +55,17 @@ parts = {"cover": head + "<body>" + cover + "</body></html>", "body": head + "<b
 
 tmp = tempfile.mkdtemp()
 chrome = subprocess.Popen(
-    ["google-chrome", "--headless=new", "--no-sandbox", "--disable-gpu", "--remote-debugging-port=9334",
-     f"--user-data-dir={tmp}", "about:blank"],
-    stdout=subprocess.DEVNULL, stderr=subprocess.DEVNULL,
+    [
+        "google-chrome",
+        "--headless=new",
+        "--no-sandbox",
+        "--disable-gpu",
+        "--remote-debugging-port=9334",
+        f"--user-data-dir={tmp}",
+        "about:blank",
+    ],
+    stdout=subprocess.DEVNULL,
+    stderr=subprocess.DEVNULL,
 )
 try:
     for _ in range(60):
@@ -62,7 +74,9 @@ try:
             break
         except Exception:
             time.sleep(0.5)
-    ws = connect(next(p for p in pages if p["type"] == "page")["webSocketDebuggerUrl"], max_size=None, legacy=True)
+    ws = connect(
+        next(p for p in pages if p["type"] == "page")["webSocketDebuggerUrl"], max_size=None, legacy=True
+    )
     n = 0
 
     def cmd(method, **params):
@@ -80,7 +94,11 @@ try:
         built.write_text(text)
         cmd("Page.navigate", url=built.as_uri())
         time.sleep(4)
-        cmd("Runtime.evaluate", expression="document.fonts.ready.then(()=>document.fonts.size)", awaitPromise=True)
+        cmd(
+            "Runtime.evaluate",
+            expression="document.fonts.ready.then(()=>document.fonts.size)",
+            awaitPromise=True,
+        )
         time.sleep(1)
         pdf = cmd("Page.printToPDF", preferCSSPageSize=True, printBackground=True, displayHeaderFooter=False)
         out = Path(tmp) / f"{name}.pdf"

@@ -48,3 +48,4 @@ ignore = ["S101"]  # asserts are fine (pytest)
 "training/*" = ["S603", "S607"]
 "dags/*" = ["S603"]
 "scripts/*" = ["S603", "S607"]
+"report/source/*" = ["S603", "S607", "S310", "E402", "E501"]
