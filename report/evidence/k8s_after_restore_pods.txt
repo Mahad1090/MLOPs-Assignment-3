@@ -1,0 +1,3 @@
+NAME                             READY   STATUS    RESTARTS   AGE
+prediction-api-59d79779d-q8mf5   1/1     Running   0          25s
+prediction-api-59d79779d-rx8rc   1/1     Running   0          25s

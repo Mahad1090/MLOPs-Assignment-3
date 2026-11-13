@@ -16,6 +16,19 @@ from agent.schemas import ToolArgs, ToolResult
 logger = get_logger("tools")
 
 
+def tail_within(lines: list[str], max_chars: int = 2200, max_line: int = 300) -> list[str]:
+    """The most recent lines that fit in a character budget (newest lines are kept)."""
+    kept: list[str] = []
+    used = 0
+    for line in reversed(lines):
+        line = line[:max_line]
+        if used + len(line) > max_chars and kept:
+            break
+        kept.append(line)
+        used += len(line)
+    return kept[::-1]
+
+
 class ToolError(Exception):
     """The backing service answered, but with an error."""
 
@@ -53,7 +66,9 @@ class Tool:
         schema = self.args_model.model_json_schema()
         schema.pop("title", None)
         for prop in schema.get("properties", {}).values():
-            prop.pop("title", None)
+            # Limits are enforced by validation; leaving them out keeps the prompt small.
+            for key in ("title", "pattern", "maxLength", "minLength"):
+                prop.pop(key, None)
         schema.setdefault("properties", {})
         return schema
 

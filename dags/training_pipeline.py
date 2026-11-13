@@ -21,8 +21,8 @@ import subprocess
 from datetime import datetime, timedelta
 from pathlib import Path
 
-from airflow.exceptions import AirflowFailException
 from airflow.sdk import Param, dag, get_current_context, task
+from airflow.sdk.exceptions import AirflowFailException
 
 PROJECT_ROOT = Path(os.environ.get("MLOPS_PROJECT_ROOT", Path(__file__).resolve().parents[1]))
 PROJECT_PYTHON = os.environ.get("MLOPS_PYTHON", str(PROJECT_ROOT / ".venv" / "bin" / "python"))

@@ -19,7 +19,14 @@ from pydantic import Field
 
 from agent.config import get_settings
 from agent.schemas import ToolArgs
-from agent.tools.base import PermissionDeniedError, Tool, ToolContext, ToolError, ToolUnavailableError
+from agent.tools.base import (
+    PermissionDeniedError,
+    Tool,
+    ToolContext,
+    ToolError,
+    ToolUnavailableError,
+    tail_within,
+)
 
 _NAME = r"^[a-z0-9]([a-z0-9.\-]{0,251}[a-z0-9])?$"
 _TIMEOUT = 10  # seconds per API request
@@ -163,13 +170,13 @@ def _event_view(event: Any) -> dict[str, Any]:
         "type": event.type,
         "reason": event.reason,
         "object": f"{obj.kind}/{obj.name}",
-        "message": (event.message or "")[:300],
+        "message": (event.message or "")[:200],
         "count": event.count,
         "last_seen": _ts(event.last_timestamp or event.event_time or event.metadata.creation_timestamp),
     }
 
 
-def _events(apis: Apis, namespace: str, warnings_only: bool, obj_name: str = "", limit: int = 25):
+def _events(apis: Apis, namespace: str, warnings_only: bool, obj_name: str = "", limit: int = 8):
     selector = "type=Warning" if warnings_only else None
     events = _call(apis.core.list_namespaced_event, namespace, field_selector=selector).items
     views = [_event_view(e) for e in events if not obj_name or e.involved_object.name == obj_name]
@@ -201,7 +208,7 @@ class PodArgs(ToolArgs):
 
 
 class PodLogArgs(PodArgs):
-    tail_lines: int = Field(default=40, ge=1, le=200)
+    tail_lines: int = Field(default=15, ge=1, le=200)
     previous: bool = Field(default=False, description="Logs of the previous (crashed) container instance.")
 
 
@@ -263,7 +270,7 @@ def pod_status(args: PodArgs, ctx: ToolContext) -> dict[str, Any]:
             for c in (pod.status.conditions or [])
         ],
         "containers": containers,
-        "events": _events(apis, namespace, warnings_only=False, obj_name=args.pod_name, limit=15),
+        "events": _events(apis, namespace, warnings_only=False, obj_name=args.pod_name, limit=6),
     }
 
 
@@ -276,7 +283,7 @@ def pod_logs(args: PodLogArgs, ctx: ToolContext) -> dict[str, Any]:
         tail_lines=args.tail_lines,
         previous=args.previous,
     )
-    lines = [line[:500] for line in (text or "").splitlines()]
+    lines = tail_within((text or "").splitlines())
     return {
         "pod": args.pod_name,
         "namespace": namespace,
@@ -357,7 +364,7 @@ def unhealthy_pods(args: NamespaceArgs, ctx: ToolContext) -> dict[str, Any]:
 
 def recent_events(args: EventArgs, ctx: ToolContext) -> dict[str, Any]:
     namespace = approved_namespace(args.namespace)
-    events = _events(_apis(), namespace, warnings_only=args.warnings_only, limit=40)
+    events = _events(_apis(), namespace, warnings_only=args.warnings_only, limit=12)
     return {"namespace": namespace, "warnings_only": args.warnings_only, "events": events}
 
 

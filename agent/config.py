@@ -6,6 +6,8 @@ environment and are never written to logs or to the repository.
 
 from __future__ import annotations
 
+import os
+import re
 from functools import lru_cache
 from pathlib import Path
 
@@ -21,7 +23,7 @@ class Settings(BaseSettings):
     # --- LLM (any OpenAI-compatible chat-completions endpoint; Groq by default) ---
     llm_api_key: SecretStr = Field(default=SecretStr(""), validation_alias="GROQ_API_KEY")
     llm_base_url: str = "https://api.groq.com/openai/v1"
-    llm_model: str = "llama-3.3-70b-versatile"
+    llm_model: str = "openai/gpt-oss-120b"
     llm_timeout_seconds: float = 60.0
     agent_max_steps: int = 12
 
@@ -51,6 +53,20 @@ class Settings(BaseSettings):
     # --- reliability ---
     tool_timeout_seconds: float = 30.0
     retraining_policy_path: Path = REPO_ROOT / "config" / "retraining_policy.yaml"
+
+    @property
+    def llm_api_keys(self) -> list[str]:
+        """All configured LLM keys: GROQ_API_KEY plus GROQ_API_KEY1, GROQ_API_KEY2, ...
+
+        The first is used; the others are fallbacks when a key is rate limited.
+        """
+        from dotenv import dotenv_values
+
+        env_file = self.model_config.get("env_file")
+        merged = {**(dotenv_values(env_file) if env_file else {}), **os.environ}
+        numbered = sorted(k for k in merged if re.fullmatch(r"GROQ_API_KEY\d+", k))
+        keys = [self.llm_api_key.get_secret_value(), *(merged[k] or "" for k in numbered)]
+        return list(dict.fromkeys(k.strip() for k in keys if k and k.strip()))
 
     @property
     def approved_dags(self) -> set[str]:

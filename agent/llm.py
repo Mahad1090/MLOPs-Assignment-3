@@ -3,6 +3,7 @@
 from __future__ import annotations
 
 import json
+import time
 from dataclasses import dataclass, field
 from typing import Any, Protocol
 
@@ -53,30 +54,55 @@ class OpenAICompatibleLLM:
     def __init__(self, settings: Settings):
         from openai import OpenAI
 
-        key = settings.llm_api_key.get_secret_value()
-        if not key:
+        keys = settings.llm_api_keys
+        if not keys:
             raise LLMError("no LLM API key configured (set GROQ_API_KEY in the environment)")
         self._model = settings.llm_model
-        self._client = OpenAI(
-            api_key=key,
-            base_url=settings.llm_base_url,
-            timeout=settings.llm_timeout_seconds,
-            max_retries=4,  # the SDK backs off and honours Retry-After on HTTP 429
-        )
+        # One client per key. The SDK backs off and honours Retry-After on HTTP 429; if a
+        # key stays rate limited the next configured key is tried.
+        self._clients = [
+            OpenAI(
+                api_key=key,
+                base_url=settings.llm_base_url,
+                timeout=settings.llm_timeout_seconds,
+                max_retries=4 if len(keys) == 1 else 1,
+            )
+            for key in keys
+        ]
+        self._current = 0
+
+    def _create(self, **kwargs: Any) -> Any:
+        from openai import RateLimitError
+
+        last: Exception | None = None
+        for attempt in range(4):
+            for _ in range(len(self._clients)):
+                try:
+                    return self._clients[self._current].chat.completions.create(**kwargs)
+                except RateLimitError as exc:
+                    last = exc
+                    self._current = (self._current + 1) % len(self._clients)
+            time.sleep(15 * (attempt + 1))  # every key is rate limited: wait for the window
+        raise last
 
     def complete(
         self, messages: list[dict[str, Any]], tools: list[dict[str, Any]], allow_tools: bool = True
     ) -> LLMTurn:
         from openai import APIError, BadRequestError
 
-        kwargs: dict[str, Any] = {"model": self._model, "messages": messages, "temperature": 0}
+        kwargs: dict[str, Any] = {
+            "model": self._model,
+            "messages": messages,
+            "temperature": 0,
+            "max_tokens": 1500,
+        }
         if tools:
             kwargs["tools"] = tools
             kwargs["tool_choice"] = "auto" if allow_tools else "none"
         last_error: Exception | None = None
         for _ in range(2):  # one retry when the model emits a malformed tool call
             try:
-                response = self._client.chat.completions.create(**kwargs)
+                response = self._create(**kwargs)
                 break
             except BadRequestError as exc:
                 last_error = exc

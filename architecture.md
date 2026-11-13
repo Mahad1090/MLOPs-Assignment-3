@@ -34,7 +34,7 @@ and the raw tool results are returned to the caller next to the answer.
 | HTTP interface | `agent/main.py` | `POST /chat`, `GET /tools`, `GET /health`. Validates requests with Pydantic (`extra="forbid"`, length and pattern limits). |
 | Terminal interface | `agent/cli.py` | Same orchestrator without a server; asks `y/N` for pending actions; can write transcripts. |
 | Orchestrator | `agent/orchestrator.py` | Agent loop (max 12 steps), per-session history, pending-action store, runtime notices. |
-| LLM client | `agent/llm.py` | Thin interface over an OpenAI-compatible chat-completions API. Tests swap in a scripted model. |
+| LLM client | `agent/llm.py` | Thin interface over an OpenAI-compatible chat-completions API (`openai/gpt-oss-120b` on Groq), with fallback keys on HTTP 429. Tests swap in a scripted model. |
 | Registry / executor | `agent/tools/base.py` | Validates arguments, runs prechecks, enforces confirmation and timeouts, maps exceptions to statuses, writes one structured log line per call. |
 | Tool modules | `agent/tools/*.py` | 30 tools: DVC 6, MLflow 7, Airflow 7, Kubernetes 9, policy 1. |
 | Training stages | `training/*.py` | validate → preprocess → train → evaluate → quality gate → register. Each is a CLI module. |
@@ -57,7 +57,11 @@ and the raw tool results are returned to the caller next to the answer.
 5. When the LLM stops calling tools, its text becomes the answer. The runtime then appends,
    independently of the LLM, a *tool availability notice* for every failed call and a list of
    actions awaiting confirmation.
-6. The response contains the answer, every tool call with arguments, status, duration and
+6. Two runtime guards act on the LLM's draft: tool results are shrunk to a per-turn context
+   budget (the free LLM tier accepts 8,000 tokens per request), and an answer that used
+   `evaluate_retraining_need` is sent back once if DVC, MLflow, Airflow DAG runs or Kubernetes
+   were not all queried.
+7. The response contains the answer, every tool call with arguments, status, duration and
    result, the failed tools and the pending actions.
 
 ## 4. How data provenance links the four systems

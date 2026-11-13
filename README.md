@@ -53,8 +53,8 @@ python3.12 -m venv .venv
 
 # Airflow gets its own environment because it pins its own dependency set
 python3.12 -m venv .venv-airflow
-.venv-airflow/bin/pip install "apache-airflow==AIRFLOW_VERSION" \
-  --constraint "https://raw.githubusercontent.com/apache/airflow/constraints-AIRFLOW_VERSION/constraints-3.12.txt"
+.venv-airflow/bin/pip install "apache-airflow==3.4.0" \
+  --constraint "https://raw.githubusercontent.com/apache/airflow/constraints-3.4.0/constraints-3.12.txt"
 
 # kubectl and kind into ~/.local/bin (skip if you already have them)
 mkdir -p ~/.local/bin
@@ -71,7 +71,7 @@ cp .env.example .env      # .env is git-ignored
 
 | Variable | Meaning |
 |---|---|
-| `GROQ_API_KEY` | LLM key, free at <https://console.groq.com/keys> |
+| `GROQ_API_KEY` | LLM key, free at <https://console.groq.com/keys>. Optional `GROQ_API_KEY1`, `GROQ_API_KEY2`, … are used as fallbacks when a key is rate limited |
 | `LLM_MODEL`, `LLM_BASE_URL` | model and endpoint (any OpenAI-compatible provider works) |
 | `MLFLOW_TRACKING_URI` | default `http://127.0.0.1:5000` |
 | `AIRFLOW_BASE_URL`, `AIRFLOW_USERNAME`, `AIRFLOW_PASSWORD` | Airflow API login. Choose any password; `scripts/start_airflow.sh` creates the user with it |
@@ -88,14 +88,13 @@ Run each in its own terminal, from the repository root.
 
 ```bash
 source .venv/bin/activate
-dvc remote add -d --local localremote /path/to/your/dvc-storage   # or use the configured one
-dvc pull                 # fetches data/raw/dataset.csv for the current commit
+dvc pull                 # fetches data/raw/dataset.csv (remote: ../mlops-a3-dvc-remote, a local folder)
 dvc repro                # validate + preprocess (cached when nothing changed)
 ```
 
 The dataset has two versions, tagged in git as `data-v1.0` (400 rows) and `data-v2.0`
 (569 rows). They are generated deterministically by `scripts/make_dataset.py`, so they can
-be recreated even without the remote:
+be recreated on a machine that does not have the remote folder:
 
 ```bash
 python -m scripts.make_dataset --version v2.0     # md5 matches data/raw/dataset.csv.dvc
@@ -223,3 +222,10 @@ python -m agent.cli -q "Did the last training pipeline run succeed? If not, why?
 ```
 
 Both investigations are written up in the technical report.
+
+## 7. Evidence
+
+- `report/evidence/` — exported output from DVC, MLflow, Airflow, Kubernetes and CI
+- `report/conversations/` — the five agent conversations and two failure investigations, each
+  with the raw tool results
+- `screenshots/` — MLflow UI

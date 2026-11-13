@@ -1,0 +1,4 @@
+pod "prediction-api-59d79779d-dqtp8" deleted from mlops namespace
+NAME                             READY   STATUS    RESTARTS   AGE
+prediction-api-59d79779d-8gtq9   0/1     Running   0          25s
+prediction-api-59d79779d-srx7v   0/1     Running   0          25s

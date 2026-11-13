@@ -16,9 +16,18 @@ from pydantic import Field
 
 from agent.config import get_settings
 from agent.schemas import NoArgs, ToolArgs
-from agent.tools.base import PermissionDeniedError, Tool, ToolContext, ToolError, ToolUnavailableError
+from agent.tools.base import (
+    PermissionDeniedError,
+    Tool,
+    ToolContext,
+    ToolError,
+    ToolUnavailableError,
+    tail_within,
+)
 
 TERMINAL_STATES = {"success", "failed"}
+# Airflow bookkeeping lines that carry no diagnostic value.
+_LOG_NOISE = ("::group::", "::endgroup::", "DAG bundles loaded", "Filling up the DagBag", "parse complete")
 FAILED_TASK_STATES = {"failed", "upstream_failed"}
 _ID = r"^[A-Za-z0-9_.:+\-]+$"
 
@@ -142,7 +151,8 @@ def _log_lines(dag_id: str, run_id: str, task_id: str, try_number: int, tail: in
             if text:
                 level = str(record.get("level", "")).upper()
                 lines.append(f"[{level}] {text}" if level else text)
-    return [line[:500] for line in lines[-tail:]]
+    lines = [line for line in lines if not any(noise in line for noise in _LOG_NOISE)]
+    return tail_within(lines[-tail:], max_chars=1500)
 
 
 # --------------------------------------------------------------------------- tools
@@ -163,7 +173,7 @@ class TaskLogArgs(ToolArgs):
     task_id: str = Field(pattern=_ID, max_length=120)
     run_id: str = Field(default="", max_length=250, description="Empty = the most recent run.")
     try_number: int = Field(default=0, ge=0, le=20, description="0 = the latest attempt.")
-    tail_lines: int = Field(default=60, ge=5, le=200)
+    tail_lines: int = Field(default=25, ge=5, le=200)
 
 
 class TriggerArgs(ToolArgs):
@@ -241,7 +251,7 @@ def failed_tasks(args: DagRunArgs, ctx: ToolContext) -> dict[str, Any]:
             task["diagnostic"] = "Not executed: an upstream task failed."
             continue
         try:
-            task["log_tail"] = _log_lines(args.dag_id, run_id, task["task_id"], task["try_number"] or 1, 25)
+            task["log_tail"] = _log_lines(args.dag_id, run_id, task["task_id"], task["try_number"] or 1, 12)
         except ToolError as exc:
             task["log_error"] = str(exc)
     return {

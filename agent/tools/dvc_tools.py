@@ -154,7 +154,7 @@ class CompareArgs(ToolArgs):
 
 class FindArgs(ToolArgs):
     md5: str = Field(default="", description="DVC md5 recorded for a training run.")
-    rev: str = Field(default="", description="Git commit or tag recorded for a training run.")
+    rev: str = Field(default="", description="Dataset tag or dvc.pointer_commit of a run (not git.commit).")
     path: str = Field(default="", description="DVC-tracked dataset path. Empty = default dataset.")
 
     @field_validator("md5")

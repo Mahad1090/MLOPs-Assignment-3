@@ -1,0 +1,16 @@
+experiment: breast-cancer-classifier id 1
+
+run_id                            model                f1      acc     gate    dataset    dvc.md5                           airflow run
+eaf859d54a824549bc1f6b0a04f78afa  random_forest        0.9645  0.9561  passed  data-v2.0  12d888ecfe4fb16eae494d67e8b50359  manual__2026-11-13T18:07:47.898637+00:00
+61c5953cc15945d688f9eed94ed92bdf  random_forest        0.9645  0.9561  failed  data-v2.0  12d888ecfe4fb16eae494d67e8b50359  manual__2026-11-13T17:44:20.456772+00:00
+f1396c4a86da44fb9988b39207fd7270  logistic_regression  0.9930  0.9912  passed  data-v2.0  12d888ecfe4fb16eae494d67e8b50359  manual__2026-11-13T17:42:39.889362+00:00
+08aca101bdc34062963b7297ac994f16  random_forest        0.9718  0.9649  passed  data-v2.0  12d888ecfe4fb16eae494d67e8b50359  manual__2026-11-13T17:41:36.573567+00:00
+7c87e1ed3b444411a2fb04bc1fb7a8e0  random_forest        0.9650  0.9561  passed  data-v2.0  12d888ecfe4fb16eae494d67e8b50359  (local)
+e59819abb45d45be8644018697d8b7c9  logistic_regression  1.0000  1.0000  passed  data-v1.0  ac465752f88767fa7b7a2a45b3338f81  (local)
+
+model registry: breast-cancer-classifier
+  version 1  run e59819abb45d45be8644018697d8b7c9  alias -          tags {'dvc.md5': 'ac465752f88767fa7b7a2a45b3338f81', 'dvc.dataset_version': 'data-v1.0', 'git.commit': '4aa39eb1f3d0160c75a28d5552653dde15b87bf6', 'f1': '1.00000'}
+  version 2  run 7c87e1ed3b444411a2fb04bc1fb7a8e0  alias -          tags {'dvc.md5': '12d888ecfe4fb16eae494d67e8b50359', 'dvc.dataset_version': 'data-v2.0', 'git.commit': '4aa39eb1f3d0160c75a28d5552653dde15b87bf6', 'f1': '0.96503'}
+  version 3  run 08aca101bdc34062963b7297ac994f16  alias -          tags {'dvc.md5': '12d888ecfe4fb16eae494d67e8b50359', 'dvc.dataset_version': 'data-v2.0', 'git.commit': 'ea3f5eca8de43c26e5ce11f1bbffaadd7e426d7c', 'f1': '0.97183'}
+  version 4  run f1396c4a86da44fb9988b39207fd7270  alias -          tags {'dvc.md5': '12d888ecfe4fb16eae494d67e8b50359', 'dvc.dataset_version': 'data-v2.0', 'git.commit': 'ea3f5eca8de43c26e5ce11f1bbffaadd7e426d7c', 'f1': '0.99301'}
+  version 5  run eaf859d54a824549bc1f6b0a04f78afa  alias candidate  tags {'dvc.md5': '12d888ecfe4fb16eae494d67e8b50359', 'dvc.dataset_version': 'data-v2.0', 'git.commit': 'ea3f5eca8de43c26e5ce11f1bbffaadd7e426d7c', 'f1': '0.96454'}

@@ -23,7 +23,10 @@ from agent.tools.base import PermissionDeniedError, ToolContext, ToolRegistry
 
 logger = get_logger("orchestrator")
 
-MAX_TOOL_RESULT_CHARS = 7000
+MAX_TOOL_RESULT_CHARS = 2600
+# All tool results of one turn together; keeps a request within small per-minute token limits.
+MAX_TURN_TOOL_CHARS = 8000
+_TRUNCATED = '..."[TRUNCATED by runtime: ask a narrower question for the rest]'
 PENDING_ACTION_TTL_SECONDS = 600
 MAX_HISTORY_MESSAGES = 12
 
@@ -42,13 +45,17 @@ Tool use
 - Work out which systems the request involves and call every tool you need; call independent \
 tools in the same step.
 - Dataset used by a model or run: read the provenance recorded on the MLflow run (dvc.md5, \
-dvc.dataset_version, git.commit), then confirm it with dvc_find_version.
+dvc.dataset_version), then confirm it with dvc_find_version using the md5. git.commit is the \
+code revision, not the dataset revision.
 - Best model: use mlflow_best_run and report the comparison. A top metric alone does not make a \
 model production-ready; mention the quality gate and the caveats returned.
 - Deployment health or "API unavailable": k8s_list_workloads and k8s_unhealthy_pods, then \
 k8s_pod_status and k8s_pod_logs of an affected pod, and k8s_services for endpoints.
 - Pipeline failures: airflow_failed_tasks, then airflow_task_logs if more detail is needed.
-- Whether to retrain: call evaluate_retraining_need for the model's run. Recommend retraining \
+- Whether to retrain: you MUST call all of mlflow_best_run, dvc_find_version, \
+k8s_deployed_version (which model run is serving), airflow_list_dag_runs (recent training runs) \
+and evaluate_retraining_need for the deployed model's run. If the top-ranked run was trained on \
+an older dataset version, say so and name the best run on the current dataset version. Recommend retraining \
 only if it returns retraining_recommended=true, and cite its reasons. Otherwise say retraining \
 is not indicated by the policy and list its unknowns.
 
@@ -60,7 +67,8 @@ what would be done and that it has NOT been done yet. Never claim it happened.
 message. Being asked whether retraining is necessary is not a request to start training.
 
 Answer style
-- Be concise and concrete. For diagnostic or multi-system questions use three sections: \
+- Be concise and concrete. Use plain ASCII hyphens in identifiers. For diagnostic or \
+multi-system questions use three sections: \
 "Known facts" (each with the tool it came from), "Uncertainties", "Recommended actions".
 """
 
@@ -165,8 +173,38 @@ class Orchestrator:
     def _tool_message(call_id: str, result: ToolResult) -> dict[str, Any]:
         content = json.dumps(result.for_llm(), default=str, separators=(",", ":"))
         if len(content) > MAX_TOOL_RESULT_CHARS:
-            content = content[:MAX_TOOL_RESULT_CHARS] + '..."[TRUNCATED: output too long]'
+            content = content[:MAX_TOOL_RESULT_CHARS] + _TRUNCATED
         return {"role": "tool", "tool_call_id": call_id, "content": content}
+
+    @staticmethod
+    def _missing_retraining_evidence(records: list[ToolCallRecord]) -> str | None:
+        """A retraining verdict must rest on all four systems; name any not yet queried."""
+        # Listing DAGs says nothing about runs, so it does not count as Airflow evidence.
+        used = {r.tool.split("_")[0] for r in records if r.tool != "airflow_list_dags"}
+        if "evaluate" not in used:
+            return None
+        missing = sorted({"dvc", "mlflow", "airflow", "k8s"} - used)
+        if not missing:
+            return None
+        return (
+            f"[Runtime note: before answering about retraining you must also query: {missing}. "
+            "Call those tools now (airflow_list_dag_runs for the state of recent training runs), "
+            "then give the complete answer including what they showed.]"
+        )
+
+    @staticmethod
+    def _fit_budget(messages: list[dict[str, Any]]) -> None:
+        """Shrink the largest tool results until the turn fits the context budget.
+
+        Only what the LLM sees is shortened; the full results stay in the response.
+        """
+        tool_messages = [m for m in messages if m["role"] == "tool"]
+        while sum(len(m["content"]) for m in tool_messages) > MAX_TURN_TOOL_CHARS:
+            largest = max(tool_messages, key=lambda m: len(m["content"]))
+            keep = max(600, int(len(largest["content"]) * 0.6))
+            if keep >= len(largest["content"]):
+                break
+            largest["content"] = largest["content"][:keep] + _TRUNCATED
 
     # ------------------------------------------------------------------ main entry
 
@@ -226,11 +264,18 @@ class Orchestrator:
         base = [{"role": "system", "content": SYSTEM_PROMPT}, *session.messages]
         specs = self.registry.llm_specs()
         answer: str | None = None
+        nudged = False
 
         try:
             for _ in range(self.max_steps):
                 turn = self.llm.complete(base + turn_messages, specs)
                 if not turn.tool_calls:
+                    missing = self._missing_retraining_evidence(records)
+                    if missing and not nudged:
+                        nudged = True  # one reminder only; the model cannot be forced
+                        turn_messages.append({"role": "assistant", "content": turn.content or ""})
+                        turn_messages.append({"role": "user", "content": missing})
+                        continue
                     answer = turn.content or ""
                     break
                 turn_messages.append(
@@ -251,6 +296,7 @@ class Orchestrator:
                     result = self._dispatch(call, session, request_id)
                     records.append(self._record(result, call.arguments))
                     turn_messages.append(self._tool_message(call.id, result))
+                self._fit_budget(turn_messages)
             else:
                 turn_messages.append(
                     {

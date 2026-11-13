@@ -1,0 +1,33 @@
+$ git tag -n --list "data-v*"
+data-v1.0       Dataset v1.0: 400 rows
+data-v2.0       Dataset v2.0: 569 rows
+
+$ cat data/raw/dataset.csv.dvc
+outs:
+- md5: 12d888ecfe4fb16eae494d67e8b50359
+  size: 121385
+  hash: md5
+  path: dataset.csv
+
+$ dvc remote list
+localremote     ~/Desktop/mlops-a3-dvc-remote     (default)
+
+$ dvc status && dvc status --cloud
+Data and pipelines are up to date.
+Cache and remote 'localremote' are in sync.
+
+$ dvc diff data-v1.0 data-v2.0
+Modified:
+    data/processed/test.csv
+    data/processed/train.csv
+    data/raw/dataset.csv
+
+files summary: 3 modified
+
+# reproducible checkout of v1.0 into a scratch file
+$ dvc get . data/raw/dataset.csv --rev data-v1.0 -o /tmp/v1.csv && md5sum /tmp/v1.csv && wc -l /tmp/v1.csv
+ac465752f88767fa7b7a2a45b3338f81  v1.csv
+401 v1.csv
+$ git show data-v1.0:data/raw/dataset.csv.dvc | grep md5
+- md5: ac465752f88767fa7b7a2a45b3338f81
+  hash: md5

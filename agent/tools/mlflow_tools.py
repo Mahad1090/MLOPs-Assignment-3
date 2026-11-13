@@ -83,7 +83,7 @@ def _summary(run) -> dict[str, Any]:
         "status": run.info.status,
         "started_at": _iso(run.info.start_time),
         "ended_at": _iso(run.info.end_time),
-        "metrics": {k: round(v, 5) for k, v in sorted(run.data.metrics.items())},
+        "metrics": {k: round(v, 4) for k, v in sorted(run.data.metrics.items())},
         "params": dict(sorted(run.data.params.items())),
         "provenance": {t: tags[t] for t in PROVENANCE_TAGS if t in tags},
     }
@@ -134,7 +134,7 @@ def _artifacts(client, run_id: str, path: str = "", depth: int = 2) -> list[dict
 
 class ListRunsArgs(ToolArgs):
     experiment: str = Field(default="", description="Experiment name or id. Empty = default.")
-    max_results: int = Field(default=10, ge=1, le=50, description="Most recent N runs.")
+    max_results: int = Field(default=5, ge=1, le=20, description="Most recent N runs.")
 
 
 class GetRunArgs(ToolArgs):
@@ -144,7 +144,7 @@ class GetRunArgs(ToolArgs):
 class BestRunArgs(ToolArgs):
     metric: str = Field(default="f1", description="Metric to rank by, e.g. f1, accuracy, roc_auc.")
     experiment: str = Field(default="", description="Experiment name or id. Empty = default.")
-    last_n: int = Field(default=20, ge=1, le=100, description="Consider only the most recent N runs.")
+    last_n: int = Field(default=10, ge=1, le=50, description="Consider only the most recent N runs.")
     higher_is_better: bool = Field(default=True)
 
 
@@ -198,8 +198,10 @@ def get_run(args: GetRunArgs, ctx: ToolContext) -> dict[str, Any]:
     detail = _summary(run)
     detail["experiment_id"] = run.info.experiment_id
     detail["artifact_uri"] = run.info.artifact_uri
-    detail["artifacts"] = _artifacts(client, run.info.run_id)
-    detail["tags"] = {k: v for k, v in run.data.tags.items() if not k.startswith("mlflow.")}
+    detail["artifacts"] = [a["path"] for a in _artifacts(client, run.info.run_id)][:15]
+    detail["tags"] = {
+        k: v for k, v in run.data.tags.items() if not k.startswith("mlflow.") and k not in PROVENANCE_TAGS
+    }
     if not detail["provenance"].get("dvc.md5"):
         detail["provenance_note"] = "This run has no recorded DVC dataset reference."
     return detail
@@ -227,7 +229,6 @@ def best_run(args: BestRunArgs, ctx: ToolContext) -> dict[str, Any]:
         "ranking": [
             {
                 "run_id": r.info.run_id,
-                "run_name": r.info.run_name,
                 args.metric: round(r.data.metrics[args.metric], 5),
                 "quality_gate": r.data.tags.get("quality_gate", "not recorded"),
                 "dataset_version": r.data.tags.get("dvc.dataset_version", "not recorded"),
@@ -260,7 +261,7 @@ def compare_runs(args: CompareRunsArgs, ctx: ToolContext) -> dict[str, Any]:
     return {
         "compared_run_count": len(summaries),
         "ordered_by": f"{args.metric} descending",
-        "metric_table": [{"run_id": s["run_id"], "run_name": s["run_name"], **s["metrics"]} for s in ordered],
+        "metric_table": [{"run_id": s["run_id"], **s["metrics"]} for s in ordered],
         "runs_missing_metric": [s["run_id"] for s in summaries if args.metric not in s["metrics"]],
         "metric_ranges": {
             m: {
@@ -278,7 +279,7 @@ def compare_runs(args: CompareRunsArgs, ctx: ToolContext) -> dict[str, Any]:
         "quality_gates": {
             s["run_id"][:8]: s["provenance"].get("quality_gate", "not recorded") for s in summaries
         },
-        "runs": summaries,
+        "started_at": {s["run_id"][:8]: s["started_at"] for s in summaries},
     }
 
 
@@ -333,7 +334,7 @@ def model_registry(args: RegistryArgs, ctx: ToolContext) -> dict[str, Any]:
                         "created_at": _iso(v.creation_timestamp),
                         "tags": dict(v.tags or {}),
                     }
-                    for v in sorted(versions, key=lambda v: int(v.version), reverse=True)
+                    for v in sorted(versions, key=lambda v: int(v.version), reverse=True)[:6]
                 ],
             }
         )

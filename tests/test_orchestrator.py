@@ -190,3 +190,24 @@ def test_context_passed_to_tools_carries_request_id(make_agent):
     agent.registry.register(Tool("probe", "probe", NoArgs, probe, category="test"))
     agent.chat("x", request_id="abc")
     assert seen["ctx"].request_id == "abc" and seen["ctx"].confirmed is False
+
+
+def test_retraining_verdict_is_not_accepted_until_all_four_systems_were_queried(
+    make_agent, fake_mlflow, fake_dvc, fake_airflow, fake_k8s
+):
+    fake_mlflow(runs=[make_run("r1", 0.97)])
+    fake_airflow()
+    fake_k8s()
+    agent, llm = make_agent(
+        calls(("mlflow_best_run", {}), ("dvc_find_version", {"md5": MD5_V2}), ("k8s_list_workloads", {})),
+        calls(("evaluate_retraining_need", {"run": "r1"})),
+        say("premature answer without Airflow"),
+        calls(("airflow_list_dag_runs", {"dag_id": "training_pipeline"})),
+        say("complete answer"),
+    )
+
+    response = agent.chat("is retraining necessary?")
+
+    assert response.answer == "complete answer"
+    assert "airflow_list_dag_runs" in [c.tool for c in response.tool_calls]
+    assert any("you must also query: ['airflow']" in m["content"] for m in llm.requests[-1])
