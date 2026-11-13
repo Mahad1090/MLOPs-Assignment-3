@@ -16,4 +16,6 @@ export MLFLOW_TRACKING_URI="${MLFLOW_TRACKING_URI:-http://127.0.0.1:5000}"
 mkdir -p "$AIRFLOW_HOME"
 ( umask 077; printf '{"%s": "%s"}\n' "${AIRFLOW_USERNAME:-admin}" "$AIRFLOW_PASSWORD" \
     > "$AIRFLOW__CORE__SIMPLE_AUTH_MANAGER_PASSWORDS_FILE" )
-exec .venv-airflow/bin/airflow standalone
+# "airflow standalone" starts its components by calling the "airflow" command from PATH
+export PATH="$ROOT/.venv-airflow/bin:$PATH"
+exec airflow standalone

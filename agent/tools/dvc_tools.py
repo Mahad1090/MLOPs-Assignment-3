@@ -196,11 +196,11 @@ def list_tracked_datasets(args: NoArgs, ctx: ToolContext) -> dict[str, Any]:
         for stage, body in (yaml.safe_load(lock.read_text()) or {}).get("stages", {}).items():
             for out in body.get("outs", []):
                 pipeline_outputs.append({"stage": stage, "path": out["path"], "md5": str(out.get("md5"))})
-    remotes = [line.split("\t")[:2] for line in _run(["dvc", "remote", "list"]).splitlines() if line]
+    remotes = [line.split()[:2] for line in _run(["dvc", "remote", "list"]).splitlines() if line]
     return {
         "datasets": datasets,
         "pipeline_outputs": pipeline_outputs,
-        "remotes": [{"name": r[0], "url": r[-1].split()[0]} for r in remotes],
+        "remotes": [{"name": r[0], "url": r[-1]} for r in remotes],
     }
 
 

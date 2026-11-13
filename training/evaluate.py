@@ -45,7 +45,14 @@ def main() -> None:
         mlflow.log_metrics(metrics)
         mlflow.log_artifact(str(METRICS_FILE))
         mlflow.log_artifact(str(VALIDATION_REPORT))
-        mlflow.sklearn.log_model(model, name="model", input_example=test[FEATURES].head(2))
+        mlflow.sklearn.log_model(
+            model,
+            name="model",
+            input_example=test[FEATURES].head(2),
+            # MLflow stores sklearn models in the skops format and rejects types it cannot
+            # vouch for. The tree structure is produced by our own training code, so it is trusted.
+            skops_trusted_types=["sklearn.tree._tree.Tree"],
+        )
     log.info("logged to MLflow run %s: %s", args.run_id, {k: round(v, 4) for k, v in metrics.items()})
 
 

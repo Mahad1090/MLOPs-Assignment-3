@@ -231,3 +231,4 @@ mlartifacts/
 *.pkl
 .ruff_cache/
 kubeconfig*
+.logs/

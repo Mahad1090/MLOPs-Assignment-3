@@ -46,12 +46,21 @@ def dataset_provenance(data_file: Path = RAW_DATA) -> dict[str, str]:
             version = tag
             break
 
+    # Most recent commit whose pointer file records exactly this md5 (not simply the last
+    # commit that touched the pointer: an older version may be checked out).
+    pointer_commit = ""
+    for commit in _git("log", "--format=%H", "--", rel_pointer).split():
+        committed = yaml.safe_load(_git("show", f"{commit}:{rel_pointer}") or "{}") or {}
+        if str(committed.get("outs", [{}])[0].get("md5")) == actual_md5:
+            pointer_commit = commit
+            break
+
     return {
         "dvc.dataset_path": str(data_file.relative_to(ROOT)),
         # md5 of the bytes actually trained on; equals the DVC pointer when the flag below is true
         "dvc.md5": actual_md5,
         "dvc.workspace_matches_pointer": str(actual_md5 == recorded_md5).lower(),
         "dvc.dataset_version": version,
-        "dvc.pointer_commit": _git("log", "-1", "--format=%H", "--", rel_pointer),
+        "dvc.pointer_commit": pointer_commit,
         "git.commit": _git("rev-parse", "HEAD"),
     }
