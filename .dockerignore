@@ -1,0 +1,5 @@
+*
+!api/
+!serving_model/
+!requirements-serving.txt
+**/__pycache__

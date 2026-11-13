@@ -1,0 +1,15 @@
+# Explicit retraining policy. The agent recommends retraining ONLY when one of
+# these documented conditions is met by evidence returned from its tools.
+policy_version: 1
+freshness:
+  # A model older than this (time since its training run ended) is stale.
+  max_model_age_days: 30
+dataset:
+  # Retrain when the current DVC dataset version differs from the one the model was trained on.
+  retrain_when_dataset_version_differs: true
+quality:
+  # Retrain when the model's training run failed (or never passed) the quality gate.
+  retrain_when_quality_gate_failed: true
+degradation:
+  # Retrain when the user supplies a live F1 that is this far below the recorded test F1.
+  max_f1_drop: 0.05
