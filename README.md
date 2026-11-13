@@ -86,27 +86,36 @@ Run each in its own terminal, from the repository root.
 
 ### 3.1 DVC (dataset)
 
-```bash
-source .venv/bin/activate
-dvc pull                 # fetches data/raw/dataset.csv (remote: ../mlops-a3-dvc-remote, a local folder)
-dvc repro                # validate + preprocess (cached when nothing changed)
-```
-
 The dataset has two versions, tagged in git as `data-v1.0` (400 rows) and `data-v2.0`
-(569 rows). They are generated deterministically by `scripts/make_dataset.py`, so they can
-be recreated on a machine that does not have the remote folder:
+(569 rows). The DVC remote is a folder next to the repository (`../mlops-a3-dvc-remote`), so
+`dvc pull` only works on the machine that has that folder. Everywhere else, regenerate the
+data. `scripts/make_dataset.py` is deterministic and produces files whose md5 equals the one
+recorded in each tag (checked on a fresh clone for both versions).
+
+**On a clean machine (tested on a fresh clone):**
 
 ```bash
-python -m scripts.make_dataset --version v2.0     # md5 matches data/raw/dataset.csv.dvc
+source .venv/bin/activate                          # dvc stages call "python", so activate first
+python -m scripts.make_dataset --version v2.0      # md5 equals data/raw/dataset.csv.dvc
+dvc commit -f data/raw/dataset.csv.dvc             # register the file in the local DVC cache
+dvc status                                         # "Data and pipelines are up to date" after repro
+dvc repro                                          # validate + preprocess (455 train / 114 test rows)
 ```
 
-Reproducible checkout of the older version:
+**On the author's machine** (remote folder present): `dvc pull` then `dvc repro`.
+
+**Reproduce the older version `data-v1.0`:**
 
 ```bash
-git checkout data-v1.0 -- data/raw/dataset.csv.dvc && dvc checkout data/raw/dataset.csv.dvc
-md5sum data/raw/dataset.csv                        # equals the md5 in the .dvc file
-git checkout HEAD -- data/raw/dataset.csv.dvc && dvc checkout data/raw/dataset.csv.dvc
+git checkout data-v1.0 -- data/raw/dataset.csv.dvc          # pointer recorded at that tag
+python -m scripts.make_dataset --version v1.0
+dvc status data/raw/dataset.csv.dvc                         # "not in cache" until committed
+dvc commit -f data/raw/dataset.csv.dvc                      # then: up to date, md5 ac465752...
+git checkout main -- data/raw/dataset.csv.dvc               # return to the latest pointer
+python -m scripts.make_dataset --version v2.0 && dvc commit -f data/raw/dataset.csv.dvc
 ```
+
+If the file on disk is changed, `dvc status` reports it as `modified`.
 
 ### 3.2 MLflow
 
