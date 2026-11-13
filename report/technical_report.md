@@ -162,7 +162,7 @@ and the raw JSON every statement is based on.
 
 ## 6. Testing
 
-0 pytest tests, all external systems mocked; `ruff check` and `ruff format --check` clean;
+85 pytest tests, all external systems mocked; `ruff check` and `ruff format --check` clean;
 the same commands run in GitHub Actions on every pull request. Required cases and where they
 are covered:
 
